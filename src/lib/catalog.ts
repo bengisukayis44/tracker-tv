@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { omdb, OmdbError, isOmdbEnabled } from "@/lib/omdb";
 import { prisma } from "@/lib/prisma";
-import { pickBackdrop, stripHtml, tvmaze, type TvmazeShow, type TvmazeShowWithEmbeds } from "@/lib/tvmaze";
+import { pickBackdrop, stripHtml, tvmaze, TvmazeError, type TvmazeShow, type TvmazeShowWithEmbeds } from "@/lib/tvmaze";
 
 /**
  * Content catalog backed by the database (PROJE_PLANI.md §2 "Önbellekleme").
@@ -47,33 +47,95 @@ function toSearchResult(show: TvmazeShow): SearchResult {
   };
 }
 
-// Search results are kept briefly in memory: popular queries repeat a lot and TVmaze is rate-limited
-const SEARCH_CACHE_TTL_MS = 10 * 60 * 1000;
-const SEARCH_CACHE_MAX_ENTRIES = 200;
-const searchCache = new Map<string, { expires: number; results: SearchResult[] }>();
+// ---------- Search ----------
 
-async function searchTvmazeCached(query: string): Promise<SearchResult[]> {
-  const key = query.trim().toLocaleLowerCase("tr-TR");
-  const hit = searchCache.get(key);
-  if (hit && hit.expires > Date.now()) return hit.results;
+// Search results are stored in the database (server memory is not shared between Vercel instances)
+const SEARCH_CACHE_TTL_MS = 1 * DAY_MS;
+// TVmaze can take 30-90 s for a query it has not cached yet; the page does not wait that long
+const LIVE_SEARCH_TIMEOUT_MS = 4_000;
+const BACKGROUND_SEARCH_TIMEOUT_MS = 60_000;
+const LOCAL_SEARCH_LIMIT = 20;
 
-  const results = (await tvmaze.searchShows(query)).map(toSearchResult);
-  if (searchCache.size >= SEARCH_CACHE_MAX_ENTRIES) searchCache.delete(searchCache.keys().next().value!);
-  searchCache.set(key, { expires: Date.now() + SEARCH_CACHE_TTL_MS, results });
+export function normalizeQuery(query: string): string {
+  return query.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
+}
+
+export type SearchOutcome = {
+  results: SearchResult[];
+  /** True when TVmaze did not answer in time and the results come from what is already stored */
+  partial: boolean;
+};
+
+async function fetchAndStoreSearch(query: string, timeoutMs: number, retries: number): Promise<SearchResult[]> {
+  const results = (await tvmaze.searchShows(query, { timeoutMs, retries })).map(toSearchResult);
+  const key = normalizeQuery(query);
+  const data = { results: results as unknown as object[], fetchedAt: new Date() };
+  await prisma.searchCache.upsert({ where: { query: key }, create: { query: key, ...data }, update: data });
   return results;
 }
 
-/** Search results are not stored in the database; only opened titles are (their IMDb rating is added if known). */
-export async function searchTitles(query: string): Promise<SearchResult[]> {
-  const results = await searchTvmazeCached(query);
-  if (results.length === 0) return results;
+/** Series already in our database whose name contains the query (fallback while TVmaze is slow). */
+async function searchStoredTitles(query: string): Promise<SearchResult[]> {
+  const titles = await prisma.title.findMany({
+    where: { type: "SERIES", tvmazeId: { not: null }, name: { contains: query.trim(), mode: "insensitive" } },
+    orderBy: [{ sourceRating: { sort: "desc", nulls: "last" } }, { name: "asc" }],
+    take: LOCAL_SEARCH_LIMIT,
+  });
+  return titles.map((t) => ({
+    tvmazeId: t.tvmazeId!,
+    type: "SERIES",
+    name: t.name,
+    posterUrl: t.posterUrl,
+    year: t.releaseDate?.getFullYear() ?? null,
+    status: t.status,
+    sourceRating: t.sourceRating,
+    imdbRating: t.imdbRating,
+    genres: t.genres,
+    overview: t.overview,
+  }));
+}
 
+async function withImdbRatings(results: SearchResult[]): Promise<SearchResult[]> {
+  if (results.length === 0) return results;
   const cached = await prisma.title.findMany({
     where: { tvmazeId: { in: results.map((r) => r.tvmazeId) }, imdbRating: { not: null } },
     select: { tvmazeId: true, imdbRating: true },
   });
   const imdbByTvmazeId = new Map(cached.map((t) => [t.tvmazeId, t.imdbRating]));
-  return results.map((r) => ({ ...r, imdbRating: imdbByTvmazeId.get(r.tvmazeId) ?? null }));
+  return results.map((r) => ({ ...r, imdbRating: imdbByTvmazeId.get(r.tvmazeId) ?? r.imdbRating ?? null }));
+}
+
+/**
+ * Searches series: a fresh stored result is returned at once; otherwise TVmaze is asked with a short timeout.
+ * If TVmaze is slow or down, stored results (an older cached search, or matching stored series) are returned
+ * with `partial: true` — the caller should then run `refreshSearchCache` in the background.
+ */
+export async function searchTitles(query: string): Promise<SearchOutcome> {
+  const key = normalizeQuery(query);
+  const cached = await prisma.searchCache.findUnique({ where: { query: key } });
+  if (cached && Date.now() - cached.fetchedAt.getTime() < SEARCH_CACHE_TTL_MS) {
+    return { results: await withImdbRatings(cached.results as unknown as SearchResult[]), partial: false };
+  }
+
+  try {
+    return {
+      results: await withImdbRatings(await fetchAndStoreSearch(query, LIVE_SEARCH_TIMEOUT_MS, 0)),
+      partial: false,
+    };
+  } catch (error) {
+    console.warn(`TVmaze araması yetişmedi ("${key}"), kayıtlı sonuçlar gösteriliyor:`, error);
+    const fallback = cached ? (cached.results as unknown as SearchResult[]) : await searchStoredTitles(query);
+    return { results: await withImdbRatings(fallback), partial: true };
+  }
+}
+
+/** Completes a search that timed out, so the next visit gets full results. Never throws. */
+export async function refreshSearchCache(query: string): Promise<void> {
+  try {
+    await fetchAndStoreSearch(query, BACKGROUND_SEARCH_TIMEOUT_MS, 1);
+  } catch (error) {
+    console.error(`Arka planda arama tamamlanamadı ("${normalizeQuery(query)}"):`, error);
+  }
 }
 
 export function isStale(lastSyncedAt: Date | null, status: string | null, now = Date.now()) {
@@ -172,29 +234,55 @@ const seriesInclude = {
   },
 } as const;
 
-/**
- * Returns a series with its seasons and episodes, fetching or refreshing it from TVmaze when needed.
- * If TVmaze is unreachable, stale cached data is returned instead of failing.
- */
-export async function getSeries(tvmazeId: number) {
-  const cached = await prisma.title.findUnique({ where: { tvmazeId }, include: seriesInclude });
+// A first visit waits this long for TVmaze; slower answers are finished in the background
+const FIRST_LOAD_TIMEOUT_MS = 10_000;
+const BACKGROUND_LOAD_TIMEOUT_MS = 60_000;
 
-  if (cached && !isStale(cached.lastSyncedAt, cached.status)) return cached;
-
-  try {
-    await saveSeries(await tvmaze.getShowWithEpisodes(tvmazeId));
-  } catch (error) {
-    if (cached) {
-      console.error(`TVmaze güncellemesi başarısız, önbellekteki veri kullanılıyor (tvmazeId=${tvmazeId}):`, error);
-      return cached;
-    }
-    throw error;
-  }
-
-  return prisma.title.findUniqueOrThrow({ where: { tvmazeId }, include: seriesInclude });
+function findStoredSeries(tvmazeId: number) {
+  return prisma.title.findUnique({ where: { tvmazeId }, include: seriesInclude });
 }
 
-export type Series = Awaited<ReturnType<typeof getSeries>>;
+export type Series = NonNullable<Awaited<ReturnType<typeof findStoredSeries>>>;
+
+export type SeriesLookup =
+  /** `stale`: shown as is; the caller should run refreshSeries in the background */
+  | { status: "ready"; series: Series; stale: boolean }
+  /** Not stored yet and TVmaze did not answer in time; refreshSeries will finish it */
+  | { status: "preparing" };
+
+/**
+ * Stale-while-revalidate: a stored series is always returned at once (flagged when it is due a refresh), so
+ * visitors never wait for TVmaze. Only a series nobody has opened yet is fetched while the visitor waits,
+ * for at most FIRST_LOAD_TIMEOUT_MS. Unknown TVmaze ids throw a TvmazeError with status 404.
+ */
+export async function lookupSeries(tvmazeId: number): Promise<SeriesLookup> {
+  const stored = await findStoredSeries(tvmazeId);
+  if (stored) return { status: "ready", series: stored, stale: isStale(stored.lastSyncedAt, stored.status) };
+
+  try {
+    await saveSeries(await tvmaze.getShowWithEpisodes(tvmazeId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));
+  } catch (error) {
+    if (error instanceof TvmazeError && error.status === 404) throw error;
+    console.warn(`TVmaze dizi isteği yetişmedi (tvmazeId=${tvmazeId}), arka planda devam edilecek:`, error);
+    return { status: "preparing" };
+  }
+  return { status: "ready", series: (await findStoredSeries(tvmazeId))!, stale: false };
+}
+
+const seriesRefreshInFlight = new Set<number>();
+
+/** Fetches a series from TVmaze (waiting up to a minute) and stores it. Meant for after(); never throws. */
+export async function refreshSeries(tvmazeId: number): Promise<void> {
+  if (seriesRefreshInFlight.has(tvmazeId)) return;
+  seriesRefreshInFlight.add(tvmazeId);
+  try {
+    await saveSeries(await tvmaze.getShowWithEpisodes(tvmazeId, { timeoutMs: BACKGROUND_LOAD_TIMEOUT_MS, retries: 1 }));
+  } catch (error) {
+    console.error(`Dizi arka planda güncellenemedi (tvmazeId=${tvmazeId}):`, error);
+  } finally {
+    seriesRefreshInFlight.delete(tvmazeId);
+  }
+}
 
 // ---------- IMDb ratings (OMDb) ----------
 

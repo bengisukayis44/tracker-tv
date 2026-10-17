@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertCircle, Clapperboard, Search } from "lucide-react";
+import { after } from "next/server";
+import { AlertCircle, Clapperboard, Clock, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { searchTitles, type SearchResult } from "@/lib/catalog";
+import { refreshSearchCache, searchTitles, type SearchResult } from "@/lib/catalog";
 import { genreLabel, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,15 +34,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   // The current source (TVmaze) has series only, so the movie filter returns nothing yet
   let results: SearchResult[] = [];
+  let partial = false;
   let error = false;
   if (q && filter !== "film") {
     try {
-      results = await searchTitles(q);
+      ({ results, partial } = await searchTitles(q));
+      // TVmaze was too slow: finish the search after the response so the next try has full results
+      if (partial) after(() => refreshSearchCache(q));
     } catch (err) {
       console.error("Arama başarısız:", err);
       error = true;
     }
   }
+  const retryHref = filterHref(q, filter);
 
   return (
     <div className="space-y-8">
@@ -102,6 +107,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           title="Arama yapılamadı"
           text="Veri kaynağına şu anda ulaşılamıyor. Biraz sonra tekrar dene."
         />
+      ) : partial && results.length === 0 ? (
+        <div className="space-y-4 text-center">
+          <EmptyState
+            icon={<Clock />}
+            title="Veri kaynağı şu an yavaş"
+            text="Arama arka planda sürüyor. Birkaç saniye sonra tekrar dene; sonuçlar hazır olacak."
+          />
+          <Button asChild variant="outline">
+            <Link href={retryHref}>Tekrar dene</Link>
+          </Button>
+        </div>
       ) : results.length === 0 ? (
         <EmptyState
           icon={<Search />}
@@ -110,6 +126,20 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         />
       ) : (
         <section className="space-y-4">
+          {partial && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Clock className="size-4 shrink-0" />
+                Veri kaynağı yavaş yanıt veriyor; şimdilik kayıtlı diziler gösteriliyor. Tam sonuçlar birazdan hazır.
+              </span>
+              <Link href={retryHref} className="font-semibold underline underline-offset-4">
+                Tekrar dene
+              </Link>
+            </div>
+          )}
           <p className="text-muted-foreground text-sm">
             &ldquo;{q}&rdquo; için {results.length} sonuç
           </p>

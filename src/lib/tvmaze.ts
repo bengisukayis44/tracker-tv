@@ -63,40 +63,54 @@ export class TvmazeError extends Error {
   constructor(
     message: string,
     public status?: number,
+    /** The request was cancelled because it took longer than the allowed time */
+    public timedOut = false,
   ) {
     super(message);
     this.name = "TvmazeError";
   }
 }
 
-const REQUEST_TIMEOUT_MS = 15_000;
+/**
+ * How long to wait and how often to retry. TVmaze sometimes takes 30-90 s to answer a request it has not
+ * cached yet, so pages use a short timeout and fall back, while background refreshes wait longer.
+ */
+export type TvmazeRequestOptions = { timeoutMs?: number; retries?: number };
 
-function isRetryable(status: number, attempt: number) {
-  // Rate limit: back off and retry; gateway errors (502-504) are usually transient, so retry twice
-  return (status === 429 && attempt < MAX_RETRIES) || (status >= 502 && status <= 504 && attempt < MAX_GATEWAY_RETRIES);
+const DEFAULT_OPTIONS: Required<TvmazeRequestOptions> = { timeoutMs: 15_000, retries: MAX_GATEWAY_RETRIES };
+
+function isRetryable(status: number, attempt: number, retries: number) {
+  // Rate limit: back off and retry; gateway errors (502-504) are usually transient
+  return (status === 429 && attempt < MAX_RETRIES) || (status >= 502 && status <= 504 && attempt < retries);
 }
 
 const backoff = (attempt: number) => new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
 
-async function tvmazeFetch<T>(path: string, attempt = 0): Promise<T> {
+async function tvmazeFetch<T>(path: string, options: TvmazeRequestOptions = {}, attempt = 0): Promise<T> {
+  const { timeoutMs, retries } = { ...DEFAULT_OPTIONS, ...options };
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     // Connection failures and timeouts are retried like gateway errors
-    if (attempt < MAX_GATEWAY_RETRIES) {
+    if (attempt < retries) {
       await backoff(attempt);
-      return tvmazeFetch<T>(path, attempt + 1);
+      return tvmazeFetch<T>(path, options, attempt + 1);
     }
-    throw new TvmazeError(`TVmaze'e ulaşılamadı: ${path} (${error instanceof Error ? error.message : error})`);
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    throw new TvmazeError(
+      `TVmaze'e ulaşılamadı: ${path} (${error instanceof Error ? error.message : error})`,
+      undefined,
+      timedOut,
+    );
   }
 
-  if (isRetryable(res.status, attempt)) {
+  if (isRetryable(res.status, attempt, retries)) {
     await backoff(attempt);
-    return tvmazeFetch<T>(path, attempt + 1);
+    return tvmazeFetch<T>(path, options, attempt + 1);
   }
   if (!res.ok) {
     throw new TvmazeError(`TVmaze isteği başarısız: ${res.status} ${path}`, res.status);
@@ -105,11 +119,12 @@ async function tvmazeFetch<T>(path: string, attempt = 0): Promise<T> {
 }
 
 export const tvmaze = {
-  async searchShows(query: string): Promise<TvmazeShow[]> {
+  async searchShows(query: string, options?: TvmazeRequestOptions): Promise<TvmazeShow[]> {
     const q = query.trim();
     if (!q) return [];
     const results = await tvmazeFetch<{ score: number; show: TvmazeShow }[]>(
       `/search/shows?q=${encodeURIComponent(q)}`,
+      options,
     );
     return results.map((r) => r.show);
   },
@@ -119,12 +134,12 @@ export const tvmaze = {
    * combined `?embed[]=…` request has proven unreliable (502s) while the single endpoints keep working.
    * Images are optional: if they fail the show is still returned without a backdrop.
    */
-  async getShowWithEpisodes(id: number): Promise<TvmazeShowWithEmbeds> {
+  async getShowWithEpisodes(id: number, options?: TvmazeRequestOptions): Promise<TvmazeShowWithEmbeds> {
     const [show, episodes, seasons, images] = await Promise.all([
-      tvmazeFetch<TvmazeShow>(`/shows/${id}`),
-      tvmazeFetch<TvmazeEpisode[]>(`/shows/${id}/episodes`),
-      tvmazeFetch<TvmazeSeason[]>(`/shows/${id}/seasons`),
-      tvmazeFetch<TvmazeShowImage[]>(`/shows/${id}/images`).catch(() => []),
+      tvmazeFetch<TvmazeShow>(`/shows/${id}`, options),
+      tvmazeFetch<TvmazeEpisode[]>(`/shows/${id}/episodes`, options),
+      tvmazeFetch<TvmazeSeason[]>(`/shows/${id}/seasons`, options),
+      tvmazeFetch<TvmazeShowImage[]>(`/shows/${id}/images`, options).catch(() => []),
     ]);
     return { ...show, _embedded: { episodes, seasons, images } };
   },

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "../../data";
+import { SeriesPreparing } from "../../series-preparing";
 import { SeriesView, visibleSeasons } from "../../series-view";
 
 /*
@@ -14,6 +15,7 @@ type Props = { params: Promise<{ id: string; s: string }> };
 
 async function loadSeason(id: string, s: string) {
   const series = await loadSeries(id);
+  if (!series) return null;
   const seasonNumber = Number(s);
   if (!/^\d+$/.test(s) || !visibleSeasons(series).some((season) => season.seasonNumber === seasonNumber)) notFound();
   return { series, seasonNumber };
@@ -21,14 +23,18 @@ async function loadSeason(id: string, s: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id, s } = await params;
-  const { series, seasonNumber } = await loadSeason(id, s);
+  const season = await loadSeason(id, s);
+  if (!season) return { title: "Dizi hazırlanıyor" };
+  const { series, seasonNumber } = season;
   const label = seasonNumber === 0 ? "Özel bölümler" : `Sezon ${seasonNumber}`;
   return { title: `${series.name} · ${label}`, description: series.overview ?? undefined };
 }
 
 export default async function SeasonPage({ params }: Props) {
   const { id, s } = await params;
-  const [{ series, seasonNumber }, user] = await Promise.all([loadSeason(id, s), getCurrentUser()]);
+  const [season, user] = await Promise.all([loadSeason(id, s), getCurrentUser()]);
+  if (!season) return <SeriesPreparing />;
+  const { series, seasonNumber } = season;
   const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
   return <SeriesView id={id} series={series} seasonNumber={seasonNumber} viewer={viewer} />;
 }

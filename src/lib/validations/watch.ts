@@ -6,7 +6,12 @@ export const NOTE_MAX_LENGTH = 1000;
 /** "İzledim" form: everything but the episode is optional. */
 export const watchEpisodeSchema = z.object({
   episodeId: z.string().min(1),
-  rating: z.number().int().min(1, "Puan 1 ile 10 arasında olmalı.").max(10, "Puan 1 ile 10 arasında olmalı.").nullable(),
+  rating: z
+    .number()
+    .int()
+    .min(1, "Puan 1 ile 10 arasında olmalı.")
+    .max(10, "Puan 1 ile 10 arasında olmalı.")
+    .nullable(),
   emotions: z
     .array(z.enum(EMOTION_VALUES))
     .max(EMOTION_VALUES.length)

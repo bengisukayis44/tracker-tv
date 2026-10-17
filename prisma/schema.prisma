@@ -202,3 +202,13 @@ model WatchlistItem {
 
   @@id([userId, titleId])
 }
+
+// ---------- Arama önbelleği ----------
+
+// TVmaze arama sonuçları (normalleştirilmiş sorgu başına). Vercel'de sunucu belleği örnekler arasında
+// paylaşılmadığı için önbellek veritabanında tutulur.
+model SearchCache {
+  query     String   @id
+  results   Json // SearchResult[] (imdbRating hariç)
+  fetchedAt DateTime @default(now())
+}

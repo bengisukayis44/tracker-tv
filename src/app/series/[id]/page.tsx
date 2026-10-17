@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "./data";
+import { SeriesPreparing } from "./series-preparing";
 import { SeriesView } from "./series-view";
 
 /*
@@ -17,6 +18,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const series = await loadSeries((await params).id);
+  if (!series) return { title: "Dizi hazırlanıyor" };
   return { title: series.name, description: series.overview ?? undefined };
 }
 
@@ -27,6 +29,7 @@ export default async function SeriesPage({ params, searchParams }: Props) {
   if (sezon && /^\d+$/.test(sezon)) redirect(`/series/${id}/season/${sezon}`);
 
   const [series, user] = await Promise.all([loadSeries(id), getCurrentUser()]);
+  if (!series) return <SeriesPreparing />;
   const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
   return <SeriesView id={id} series={series} viewer={viewer} />;
 }

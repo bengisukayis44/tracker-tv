@@ -10,19 +10,23 @@ import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
 import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
 import { loadSeries } from "../../../../data";
+import { SeriesPreparing } from "../../../../series-preparing";
 
 type Props = { params: Promise<{ id: string; s: string; e: string }> };
 
 async function loadEpisode(params: Props["params"]) {
   const { id, s, e } = await params;
   const series = await loadSeries(id);
+  if (!series) return null;
   const found = findEpisodeWithNeighbors(series.seasons, Number(s), Number(e));
   if (!found) notFound();
   return { id, series, ...found };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { series, season, episode } = await loadEpisode(params);
+  const loaded = await loadEpisode(params);
+  if (!loaded) return { title: "Dizi hazırlanıyor" };
+  const { series, season, episode } = loaded;
   return {
     title: `${series.name} ${episodeCode(season.seasonNumber, episode.episodeNumber)}: ${episode.name}`,
     description: episode.overview ?? undefined,
@@ -30,10 +34,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EpisodePage({ params }: Props) {
-  const [{ id, series, season, episode, previous, next }, user] = await Promise.all([
-    loadEpisode(params),
-    getCurrentUser(),
-  ]);
+  const [loaded, user] = await Promise.all([loadEpisode(params), getCurrentUser()]);
+  if (!loaded) return <SeriesPreparing />;
+  const { id, series, season, episode, previous, next } = loaded;
   const aired = isAired(episode);
   const watch = user ? await getEpisodeWatch(user.id, episode.id) : null;
   const seasonLabel = season.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${season.seasonNumber}`;

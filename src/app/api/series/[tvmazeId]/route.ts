@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getSeries } from "@/lib/catalog";
+import { after, NextResponse } from "next/server";
+import { lookupSeries, refreshSeries } from "@/lib/catalog";
 import { TvmazeError } from "@/lib/tvmaze";
 
 // GET /api/series/335 — series with seasons and episodes, served from the database cache
@@ -10,7 +10,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tvm
   }
 
   try {
-    return NextResponse.json(await getSeries(tvmazeId));
+    const lookup = await lookupSeries(tvmazeId);
+    if (lookup.status === "preparing" || lookup.stale) after(() => refreshSeries(tvmazeId));
+    if (lookup.status === "preparing") {
+      return NextResponse.json({ status: "preparing" }, { status: 202, headers: { "Retry-After": "5" } });
+    }
+    return NextResponse.json(lookup.series);
   } catch (error) {
     if (error instanceof TvmazeError && error.status === 404) {
       return NextResponse.json({ error: "Dizi bulunamadı." }, { status: 404 });
