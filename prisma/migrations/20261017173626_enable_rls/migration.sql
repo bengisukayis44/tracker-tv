@@ -1,0 +1,16 @@
+-- Supabase exposes the public schema through its Data API (PostgREST).
+-- RLS with no policies blocks the anon/authenticated roles there; the app connects as the
+-- table owner (postgres), which bypasses RLS, so Prisma is unaffected.
+ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Account" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Session" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "VerificationToken" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Title" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Season" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Episode" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "WatchedEpisode" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "WatchedMovie" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Comment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "CommentLike" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Favorite" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "WatchlistItem" ENABLE ROW LEVEL SECURITY;

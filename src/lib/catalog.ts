@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { pickBackdrop, stripHtml, tvmaze, type TvmazeShow, type TvmazeShowWithEmbeds } from "@/lib/tvmaze";
 
@@ -12,6 +13,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Airing shows get new episodes weekly, so they refresh more often than finished ones
 const REFRESH_INTERVAL_RUNNING_MS = 1 * DAY_MS;
 const REFRESH_INTERVAL_DEFAULT_MS = 7 * DAY_MS;
+const EPISODE_BATCH_SIZE = 500;
 
 export type SearchResult = {
   tvmazeId: number;
@@ -63,9 +65,9 @@ async function saveSeries(show: TvmazeShowWithEmbeds) {
     releaseDate: show.premiered ? new Date(show.premiered) : null,
     status: show.status ?? null,
     genres: show.genres ?? [],
-    lastSyncedAt: new Date(),
   };
 
+  // lastSyncedAt is only set once seasons and episodes are stored, so a failed sync is retried next time
   const title = await prisma.title.upsert({
     where: { tvmazeId: show.id },
     create: { tvmazeId: show.id, type: "SERIES", ...titleData },
@@ -75,40 +77,63 @@ async function saveSeries(show: TvmazeShowWithEmbeds) {
   // Specials have no episode number and do not fit the (season, episodeNumber) key, so they are skipped
   const episodes = (show._embedded?.episodes ?? []).filter((ep) => ep.number != null);
   const seasonInfo = new Map((show._embedded?.seasons ?? []).map((s) => [s.number, s]));
-  const seasonNumbers = [...new Set(episodes.map((ep) => ep.season))];
+  const seasonRows = [...new Set(episodes.map((ep) => ep.season))].map((seasonNumber) => {
+    const info = seasonInfo.get(seasonNumber);
+    return {
+      id: randomUUID(),
+      seasonNumber,
+      name: info?.name || null,
+      posterUrl: info?.image?.original ?? info?.image?.medium ?? null,
+    };
+  });
 
-  const seasons = await prisma.$transaction(
-    seasonNumbers.map((seasonNumber) => {
-      const info = seasonInfo.get(seasonNumber);
-      const data = { name: info?.name || null, posterUrl: info?.image?.original ?? info?.image?.medium ?? null };
-      return prisma.season.upsert({
-        where: { titleId_seasonNumber: { titleId: title.id, seasonNumber } },
-        create: { titleId: title.id, seasonNumber, ...data },
-        update: data,
-      });
-    }),
-  );
+  // Bulk upserts: one statement per batch instead of one round trip per row (long shows have 800+ episodes)
+  const seasons = await prisma.$queryRaw<{ id: string; seasonNumber: number }[]>`
+    INSERT INTO "Season" ("id", "titleId", "seasonNumber", "name", "posterUrl")
+    SELECT x."id", ${title.id}, x."seasonNumber", x."name", x."posterUrl"
+    FROM jsonb_to_recordset(${JSON.stringify(seasonRows)}::jsonb)
+      AS x("id" text, "seasonNumber" int, "name" text, "posterUrl" text)
+    ON CONFLICT ("titleId", "seasonNumber") DO UPDATE
+      SET "name" = EXCLUDED."name", "posterUrl" = EXCLUDED."posterUrl"
+    RETURNING "id", "seasonNumber"`;
   const seasonIdByNumber = new Map(seasons.map((s) => [s.seasonNumber, s.id]));
 
-  await prisma.$transaction(
-    episodes.map((ep) => {
-      const data = {
-        seasonId: seasonIdByNumber.get(ep.season)!,
-        episodeNumber: ep.number!,
-        name: ep.name,
-        overview: stripHtml(ep.summary),
-        runtime: ep.runtime,
-        sourceRating: ep.rating?.average ?? null,
-        airDate: ep.airstamp ? new Date(ep.airstamp) : null,
-        stillUrl: ep.image?.original ?? ep.image?.medium ?? null,
-      };
-      return prisma.episode.upsert({
-        where: { tvmazeId: ep.id },
-        create: { tvmazeId: ep.id, ...data },
-        update: data,
-      });
-    }),
-  );
+  const episodeRows = episodes.map((ep) => ({
+    id: randomUUID(),
+    tvmazeId: ep.id,
+    seasonId: seasonIdByNumber.get(ep.season)!,
+    episodeNumber: ep.number!,
+    name: ep.name,
+    overview: stripHtml(ep.summary),
+    runtime: ep.runtime,
+    sourceRating: ep.rating?.average ?? null,
+    // Stored as UTC in a timestamp-without-time-zone column, matching Prisma's convention
+    airDate: ep.airstamp ? new Date(ep.airstamp).toISOString() : null,
+    stillUrl: ep.image?.original ?? ep.image?.medium ?? null,
+  }));
+
+  for (let i = 0; i < episodeRows.length; i += EPISODE_BATCH_SIZE) {
+    const batch = episodeRows.slice(i, i + EPISODE_BATCH_SIZE);
+    await prisma.$executeRaw`
+      INSERT INTO "Episode"
+        ("id", "tvmazeId", "seasonId", "episodeNumber", "name", "overview", "runtime", "sourceRating", "airDate", "stillUrl")
+      SELECT x."id", x."tvmazeId", x."seasonId", x."episodeNumber", x."name", x."overview", x."runtime",
+             x."sourceRating", x."airDate", x."stillUrl"
+      FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x(
+        "id" text, "tvmazeId" int, "seasonId" text, "episodeNumber" int, "name" text, "overview" text,
+        "runtime" int, "sourceRating" double precision, "airDate" timestamp(3), "stillUrl" text)
+      ON CONFLICT ("tvmazeId") DO UPDATE SET
+        "seasonId" = EXCLUDED."seasonId",
+        "episodeNumber" = EXCLUDED."episodeNumber",
+        "name" = EXCLUDED."name",
+        "overview" = EXCLUDED."overview",
+        "runtime" = EXCLUDED."runtime",
+        "sourceRating" = EXCLUDED."sourceRating",
+        "airDate" = EXCLUDED."airDate",
+        "stillUrl" = EXCLUDED."stillUrl"`;
+  }
+
+  await prisma.title.update({ where: { id: title.id }, data: { lastSyncedAt: new Date() } });
 }
 
 const seriesInclude = {

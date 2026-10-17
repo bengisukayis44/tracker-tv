@@ -1,10 +1,10 @@
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 function createPrismaClient() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL tanımlı değil. .env.example dosyasına bakın.");
-  return new PrismaClient({ adapter: new PrismaLibSql({ url }) });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL tanımlı değil. .env.example dosyasına bakın.");
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
 // Reuse one client across hot reloads in development

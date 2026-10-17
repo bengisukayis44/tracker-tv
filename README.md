@@ -16,7 +16,7 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 - Next.js 15 (App Router) + TypeScript
 - Tailwind CSS 4 + shadcn/ui
-- Prisma 7 + SQLite (libSQL sürücüsü) — PostgreSQL'e geçiş için bkz. aşağısı
+- Prisma 7 + PostgreSQL (Supabase, Frankfurt, ücretsiz plan) — `@prisma/adapter-pg`
 - Auth.js (NextAuth v5): e-posta/şifre + isteğe bağlı Google
 - İçerik verisi: TVmaze API (anahtarsız). TMDB + OMDb'ye ileride geçilecek.
 
@@ -24,8 +24,8 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 ```bash
 npm install
-cp .env.example .env   # ardından AUTH_SECRET'i doldurun: openssl rand -base64 32
-npm run db:migrate     # veritabanını oluşturur
+cp .env.example .env   # Supabase adreslerini ve AUTH_SECRET'i doldurun
+npx prisma migrate deploy   # tabloları Supabase'e kurar (ilk kurulumda)
 npm run dev            # http://localhost:3000
 ```
 
@@ -47,11 +47,19 @@ Bir dizi ilk açıldığında TVmaze'den çekilip `Title` / `Season` / `Episode`
 Sonraki isteklerde veritabanından okunur; devam eden diziler 1 günde, bitmiş diziler 7 günde bir yenilenir.
 TVmaze'e ulaşılamazsa eski veri gösterilir.
 
+## Veritabanı (Supabase)
+
+- Proje: `tracker-tv` (Frankfurt, ücretsiz plan). Uygulama transaction pooler'a (`DATABASE_URL`, 6543),
+  Prisma CLI session pooler'a (`DIRECT_URL`, 5432) bağlanır.
+- Supabase `public` şemasını Data API (PostgREST) ile dışarı açtığı için **tüm tablolarda RLS açık ve politika yok**:
+  anon/authenticated rolleri hiçbir satırı göremez. Uygulama tablo sahibi olarak bağlandığından etkilenmez.
+  Yeni tablo eklerken migration'a `ALTER TABLE "..." ENABLE ROW LEVEL SECURITY;` eklemeyi unutmayın.
+- Uzun dizilerin bölümleri tek tek değil, toplu SQL (`INSERT ... ON CONFLICT`) ile kaydedilir.
+
 ## Plandan sapmalar
 
-- **SQLite:** Yerelde kurulum gerektirmemesi için. SQLite liste alanlarını desteklemediğinden `genres` ve
-  `emotions` JSON olarak saklanıyor. PostgreSQL'e geçmek için `schema.prisma`'da `provider = "postgresql"`,
-  `src/lib/prisma.ts`'te `@prisma/adapter-pg` kullanın ve `DATABASE_URL`'i değiştirin.
+- **JSON alanlar:** `genres` ve `emotions` SQLite döneminden kalma olarak JSON; PostgreSQL'de native
+  dizilere (`String[]`, `Emotion[]`) çevrilebilir.
 - **TVmaze:** TMDB/OMDb anahtarları alınana kadar. TVmaze'de film ve IMDb puanı yok; `imdbRating` alanları
   şimdilik boş kalıyor, `imdbId` ise dolduruluyor (OMDb geçişinde kullanılacak).
   Puan olarak şimdilik TVmaze kullanıcı puanı (`sourceRating`) gösteriliyor ve "TVmaze" etiketiyle işaretleniyor.

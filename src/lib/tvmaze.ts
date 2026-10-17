@@ -68,10 +68,20 @@ export class TvmazeError extends Error {
   }
 }
 
-async function tvmazeFetch<T>(path: string, attempt = 0): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+const REQUEST_TIMEOUT_MS = 15_000;
 
-  if (res.status === 429 && attempt < MAX_RETRIES) {
+function isRetryable(status: number, attempt: number) {
+  // Rate limit: back off and retry; gateway errors are usually transient, so retry once
+  return (status === 429 && attempt < MAX_RETRIES) || (status >= 502 && status <= 504 && attempt < 1);
+}
+
+async function tvmazeFetch<T>(path: string, attempt = 0): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  if (isRetryable(res.status, attempt)) {
     await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
     return tvmazeFetch<T>(path, attempt + 1);
   }
@@ -91,8 +101,19 @@ export const tvmaze = {
     return results.map((r) => r.show);
   },
 
-  getShowWithEpisodes(id: number): Promise<TvmazeShowWithEmbeds> {
-    return tvmazeFetch(`/shows/${id}?embed[]=episodes&embed[]=seasons&embed[]=images`);
+  /**
+   * Show plus episodes, seasons and images. Fetched as separate requests in parallel because the
+   * combined `?embed[]=…` request has proven unreliable (502s) while the single endpoints keep working.
+   * Images are optional: if they fail the show is still returned without a backdrop.
+   */
+  async getShowWithEpisodes(id: number): Promise<TvmazeShowWithEmbeds> {
+    const [show, episodes, seasons, images] = await Promise.all([
+      tvmazeFetch<TvmazeShow>(`/shows/${id}`),
+      tvmazeFetch<TvmazeEpisode[]>(`/shows/${id}/episodes`),
+      tvmazeFetch<TvmazeSeason[]>(`/shows/${id}/seasons`),
+      tvmazeFetch<TvmazeShowImage[]>(`/shows/${id}/images`).catch(() => []),
+    ]);
+    return { ...show, _embedded: { episodes, seasons, images } };
   },
 };
 

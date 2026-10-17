@@ -1,8 +1,8 @@
 // Veri modeli — PROJE_PLANI.md §3
 //
 // Plandan bilinçli sapmalar:
-// - Veritabanı şimdilik SQLite. SQLite liste alanlarını (String[], Emotion[]) desteklemediği için
-//   `genres` ve `emotions` JSON dizisi olarak saklanır; PostgreSQL'e geçişte değiştirilebilir.
+// - Veritabanı: Supabase PostgreSQL. `genres` ve `emotions` SQLite döneminden kalma olarak JSON dizisi;
+//   istenirse native dizilere (String[], Emotion[]) çevrilebilir.
 // - İçerik kaynağı şimdilik TVmaze: `tvmazeId` alanları eklendi, `tmdbId` TMDB'ye geçişte doldurulacak.
 // - Auth.js (NextAuth) için gereken Account/Session/VerificationToken modelleri ve
 //   User üzerindeki name/emailVerified/image/passwordHash alanları eklendi. `image` = avatar.
@@ -13,7 +13,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum TitleType {
