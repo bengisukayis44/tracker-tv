@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, login, test } from "./fixtures";
 import { logout, newTestUser, register } from "./helpers";
 
 test.describe("Kayıt ve giriş", () => {
   test("kayıt olunca giriş yapılmış olur, çıkış yapılabilir, tekrar giriş yapılabilir", async ({ page }) => {
+    // The only test that signs up through the form (Supabase rate-limits sign-ups)
     const user = newTestUser();
     await register(page, user);
     await expect(page.getByRole("button", { name: "Hesap menüsü" })).toBeVisible();
@@ -11,14 +12,6 @@ test.describe("Kayıt ve giriş", () => {
     await page.goto("/login");
     await expect(page).toHaveURL("/");
 
-    await logout(page);
-
-    // Log in with the username
-    await page.goto("/login");
-    await page.getByLabel("E-posta veya kullanıcı adı").fill(user.username);
-    await page.getByLabel("Şifre").fill(user.password);
-    await page.getByRole("button", { name: "Giriş yap" }).click();
-    await expect(page.getByRole("heading", { name: `Hoş geldin, @${user.username}` })).toBeVisible();
     await logout(page);
 
     // Log in with the e-mail, written in different case
@@ -33,13 +26,18 @@ test.describe("Kayıt ve giriş", () => {
     await expect(page.getByRole("heading", { name: `Hoş geldin, @${user.username}` })).toBeVisible();
   });
 
-  test("yanlış şifre ve olmayan kullanıcı aynı hata mesajını verir", async ({ page }) => {
-    const user = newTestUser();
-    await register(page, user);
+  test("kullanıcı adıyla giriş; çıkış yalnızca o tarayıcıyı kapatır", async ({ page, signedInPage, account }) => {
+    await login(page, account);
     await logout(page);
 
+    // The other browser session of the same account is still signed in
+    await signedInPage.goto("/");
+    await expect(signedInPage.getByRole("heading", { name: `Hoş geldin, @${account.username}` })).toBeVisible();
+  });
+
+  test("yanlış şifre ve olmayan kullanıcı aynı hata mesajını verir", async ({ page, account }) => {
     for (const [identifier, password] of [
-      [user.username, "yanlis-sifre-999"],
+      [account.username, "yanlis-sifre-999"],
       ["boyle_biri_yok_123", "bir-sifre-123"],
     ]) {
       await page.goto("/login");
@@ -51,21 +49,17 @@ test.describe("Kayıt ve giriş", () => {
     }
   });
 
-  test("alınmış kullanıcı adı ve e-posta ile kayıt olunamaz", async ({ page }) => {
-    const user = newTestUser();
-    await register(page, user);
-    await logout(page);
-
+  test("alınmış kullanıcı adı ve e-posta ile kayıt olunamaz", async ({ page, account }) => {
     const other = newTestUser();
     await page.goto("/register");
-    await page.getByLabel("Kullanıcı adı").fill(user.username);
+    await page.getByLabel("Kullanıcı adı").fill(account.username);
     await page.getByLabel("E-posta").fill(other.email);
     await page.getByLabel("Şifre").fill(other.password);
     await page.getByRole("button", { name: "Kayıt ol" }).click();
     await expect(page.getByText("Bu kullanıcı adı alınmış.")).toBeVisible();
 
     await page.getByLabel("Kullanıcı adı").fill(other.username);
-    await page.getByLabel("E-posta").fill(user.email);
+    await page.getByLabel("E-posta").fill(account.email);
     await page.getByRole("button", { name: "Kayıt ol" }).click();
     await expect(page.getByText("Bu e-posta adresiyle zaten bir hesap var.")).toBeVisible();
   });
@@ -82,14 +76,10 @@ test.describe("Kayıt ve giriş", () => {
     await expect(page).toHaveURL(/\/register/);
   });
 
-  test("giriş sonrası yalnızca site içine yönlendirir", async ({ page }) => {
-    const user = newTestUser();
-    await register(page, user);
-    await logout(page);
-
+  test("giriş sonrası yalnızca site içine yönlendirir", async ({ page, account }) => {
     await page.goto("/login?callbackUrl=//evil.example");
-    await page.getByLabel("E-posta veya kullanıcı adı").fill(user.username);
-    await page.getByLabel("Şifre").fill(user.password);
+    await page.getByLabel("E-posta veya kullanıcı adı").fill(account.username);
+    await page.getByLabel("Şifre").fill(account.password);
     await page.getByRole("button", { name: "Giriş yap" }).click();
     await expect(page).toHaveURL("/");
   });

@@ -9,10 +9,29 @@ import { isAired, sortSeasons } from "@/lib/episodes";
 import { formatRuntime, genreLabel, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Series } from "@/lib/catalog";
+import type { TitleViewerState } from "@/lib/viewer";
+import { isSeasonWatched, watchProgress } from "@/lib/watch";
+import { SeasonWatchButton } from "@/components/watch/season-watch-button";
+import { TitleActions } from "@/components/watch/title-actions";
+import { WatchToggle } from "@/components/watch/watch-toggle";
 
 /** Series detail with season tabs; shared by /series/[id] (first season) and /series/[id]/season/[s]. */
-export function SeriesView({ id, series, seasonNumber }: { id: string; series: Series; seasonNumber?: number }) {
+export function SeriesView({
+  id,
+  series,
+  seasonNumber,
+  viewer,
+}: {
+  id: string;
+  series: Series;
+  seasonNumber?: number;
+  /** null when signed out */
+  viewer: TitleViewerState | null;
+}) {
+  const signedIn = viewer !== null;
+  const watchedIds = viewer?.watchedIds ?? new Set<string>();
   const seasons = visibleSeasons(series);
+  const progress = watchProgress(seasons, watchedIds);
   const activeSeason = seasons.find((s) => s.seasonNumber === seasonNumber) ?? seasons[0];
   const genres = series.genres;
   const totalEpisodes = seasons.reduce((sum, s) => sum + s.episodes.length, 0);
@@ -86,6 +105,37 @@ export function SeriesView({ id, series, seasonNumber }: { id: string; series: S
                 <ExternalLink className="size-3.5" />
               </a>
             )}
+
+            <TitleActions
+              titleId={series.id}
+              isFavorite={viewer?.isFavorite ?? false}
+              inWatchlist={viewer?.inWatchlist ?? false}
+              signedIn={signedIn}
+            />
+
+            {signedIn && progress.total > 0 && (
+              <div className="max-w-md space-y-1.5" aria-label="İzleme ilerlemesi">
+                <div className="flex justify-between text-sm">
+                  <span className="font-semibold">
+                    {progress.watched}/{progress.total} bölüm izlendi
+                  </span>
+                  <span className="text-muted-foreground">%{progress.percent}</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.watched}
+                  aria-label={`${progress.total} bölümden ${progress.watched} tanesi izlendi`}
+                  className="bg-secondary h-2 overflow-hidden rounded-full"
+                >
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -128,13 +178,21 @@ export function SeriesView({ id, series, seasonNumber }: { id: string; series: S
               </div>
             </nav>
 
-            <p className="text-muted-foreground text-sm">
-              {activeSeason.name && activeSeason.name !== `Season ${activeSeason.seasonNumber}` && (
-                <span className="text-foreground font-semibold">{activeSeason.name} · </span>
-              )}
-              {activeSeason.episodes.length} bölüm · {activeSeason.episodes.filter((ep) => isAired(ep)).length}{" "}
-              yayınlandı
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-muted-foreground text-sm">
+                {activeSeason.name && activeSeason.name !== `Season ${activeSeason.seasonNumber}` && (
+                  <span className="text-foreground font-semibold">{activeSeason.name} · </span>
+                )}
+                {activeSeason.episodes.length} bölüm · {activeSeason.episodes.filter((ep) => isAired(ep)).length}{" "}
+                yayınlandı
+              </p>
+              <SeasonWatchButton
+                seasonId={activeSeason.id}
+                seasonWatched={isSeasonWatched(activeSeason.episodes, watchedIds)}
+                hasAired={activeSeason.episodes.some((ep) => isAired(ep))}
+                signedIn={signedIn}
+              />
+            </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
               {activeSeason.episodes.map((ep) => (
@@ -150,6 +208,16 @@ export function SeriesView({ id, series, seasonNumber }: { id: string; series: S
                   runtime={ep.runtime}
                   rating={pickRating(ep.imdbRating, ep.sourceRating)}
                   aired={isAired(ep)}
+                  watched={watchedIds.has(ep.id)}
+                  action={
+                    <WatchToggle
+                      episodeId={ep.id}
+                      label={`${activeSeason.seasonNumber}. sezon ${ep.episodeNumber}. bölüm`}
+                      watched={watchedIds.has(ep.id)}
+                      aired={isAired(ep)}
+                      signedIn={signedIn}
+                    />
+                  }
                 />
               ))}
             </div>

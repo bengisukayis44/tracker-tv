@@ -1,7 +1,17 @@
 # Tracker.tv — Dizi & Film Takip
 
 İzlediğin dizi ve filmleri takip ettiğin, bölümleri puanlayıp yorumladığın web uygulaması.
-Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**.
+Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**.
+
+## İzleme takibi (Faz 3)
+
+- **İzledim** (bölüm sayfası): 1–10 puan, birden fazla duygu (10 seçenek, emojili), sadece kullanıcının gördüğü kişisel not.
+  Sonradan düzenlenebilir ya da "İzlenmedi olarak işaretle" ile geri alınabilir.
+- Bölüm listesinde tek tıkla izlendi işareti, "Sezonun tamamını izledim" (yalnızca yayınlanmış bölümler) ve geri alma.
+- Bir bölüm işaretlenince, öncesinde izlenmemiş yayınlanmış bölüm varsa "Önceki N bölümü de izledin mi?" diye sorulur.
+- Dizi sayfasında ilerleme çubuğu ("5/12 bölüm izlendi"), **Favorilere ekle** ve **Daha sonra izle**.
+  Diziden bir bölüm izlenince dizi "Daha sonra izle" listesinden otomatik çıkar (favoriler kalır).
+- Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
 
 ## Sayfalar
 
@@ -37,8 +47,9 @@ npm test             # birim testleri (Vitest) — saniyeler sürer, ağ gerekti
 npm run test:e2e     # uçtan uca testler (Playwright) — üretim derlemesi alıp 3100 portunda çalıştırır
 ```
 
-Uçtan uca testler gerçek Supabase veritabanını ve TVmaze'i kullanır. `@e2e.test` ile biten test hesapları
-açar ve tur bitince siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
+Uçtan uca testler gerçek Supabase veritabanını ve TVmaze'i kullanır. Her test işçisi `@e2e.test` ile biten
+hesaplarını Supabase Admin API ile bir kez açar (`SUPABASE_SECRET_KEY` gerekir, yalnızca `.env`'de durur),
+her testten önce o hesabın izleme verisini sıfırlar ve tur bitince hesapları siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
 GitHub'da her push'ta lint, tip kontrolü, birim testleri ve derleme otomatik çalışır (`.github/workflows/ci.yml`);
 uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde çalışır.
 
@@ -64,6 +75,9 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 - E-posta doğrulaması kapalı: Supabase'in hazır e-posta servisi yalnızca ekip üyelerine, saatte 2 e-posta
   gönderebiliyor. Şifre sıfırlama gibi e-postalar için ileride özel bir SMTP (ör. Resend) bağlanmalı.
 - Ücretsiz plan: ayda 50.000 aktif kullanıcı.
+- Giriş/kayıt istekleri Supabase'e sunucudan (Vercel) gittiği için Supabase'in IP başına sınırı fiilen site geneli
+  bir sınırdır; `supabase/config.toml` içinde 5 dakikada 150 olarak ayarlandı. Trafik artarsa yeniden değerlendirin.
+- Çıkış yalnızca o tarayıcıdaki oturumu kapatır (diğer cihazlar açık kalır).
 
 ## Veritabanı (Supabase)
 
@@ -86,4 +100,6 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 
 - **TVmaze:** Film içermediği için film araması/sayfası henüz yok; `tmdbId` alanı ileride TMDB için duruyor.
 - **Sezon adresi:** `/series/[id]/season/[s]` (planda yoktu). Next.js 15.5'te yalnızca `?sezon=` değişen
-  gezinmeler ekrana gelmiyordu; ayrıca dizi sayfasında `loading.tsx` yerine sayfa içi `Suspense` kullanılıyor.
+  gezinmeler ekrana gelmiyordu. Aynı nedenle dizi/sezon sayfalarında `loading.tsx` ya da `Suspense` yok: ikisi de
+  sekme geçişlerini ve "izledim" sonrası ilerleme güncellemesini ekrana yansıtmıyordu.
+- **Filmler:** `WatchedMovie` tablosu hazır, film kaynağı eklenince kullanılacak.

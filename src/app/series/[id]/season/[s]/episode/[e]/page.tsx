@@ -4,6 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { RatingBadge } from "@/components/rating-badge";
+import { WatchPanel } from "@/components/watch/watch-panel";
+import { getCurrentUser } from "@/lib/auth";
+import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
 import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
 import { loadSeries } from "../../../../data";
@@ -27,8 +30,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EpisodePage({ params }: Props) {
-  const { id, series, season, episode, previous, next } = await loadEpisode(params);
+  const [{ id, series, season, episode, previous, next }, user] = await Promise.all([
+    loadEpisode(params),
+    getCurrentUser(),
+  ]);
   const aired = isAired(episode);
+  const watch = user ? await getEpisodeWatch(user.id, episode.id) : null;
   const seasonLabel = season.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${season.seasonNumber}`;
 
   return (
@@ -69,6 +76,8 @@ export default async function EpisodePage({ params }: Props) {
           )}
         </div>
       </header>
+
+      <WatchPanel episodeId={episode.id} aired={aired} signedIn={user !== null} watch={watch} />
 
       <div className="bg-muted relative aspect-video overflow-hidden rounded-2xl border">
         {episode.stillUrl ? (

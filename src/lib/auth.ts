@@ -14,7 +14,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+  // A missing session is normal for visitors; anything else (e.g. rate limiting) is worth knowing about
+  if (error && error.name !== "AuthSessionMissingError")
+    console.error("Oturum doğrulanamadı:", error.status, error.message);
   if (!user) return null;
 
   return prisma.user.findUnique({

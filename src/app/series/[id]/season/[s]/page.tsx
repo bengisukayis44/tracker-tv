@@ -1,13 +1,14 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "../../data";
-import { SeriesSkeleton } from "../../series-skeleton";
 import { SeriesView, visibleSeasons } from "../../series-view";
 
 /*
  * The season is part of the path rather than a ?sezon= query parameter: with Next.js 15.5 a client-side
  * navigation that only changes the search params of the series page never commits, so the tabs did nothing.
+ * (See ../../page.tsx for why there is no loading state here.)
  */
 type Props = { params: Promise<{ id: string; s: string }> };
 
@@ -27,14 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SeasonPage({ params }: Props) {
   const { id, s } = await params;
-  return (
-    <Suspense fallback={<SeriesSkeleton />}>
-      <SeasonContent id={id} s={s} />
-    </Suspense>
-  );
-}
-
-async function SeasonContent({ id, s }: { id: string; s: string }) {
-  const { series, seasonNumber } = await loadSeason(id, s);
-  return <SeriesView id={id} series={series} seasonNumber={seasonNumber} />;
+  const [{ series, seasonNumber }, user] = await Promise.all([loadSeason(id, s), getCurrentUser()]);
+  const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
+  return <SeriesView id={id} series={series} seasonNumber={seasonNumber} viewer={viewer} />;
 }

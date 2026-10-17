@@ -1,14 +1,14 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "./data";
-import { SeriesSkeleton } from "./series-skeleton";
 import { SeriesView } from "./series-view";
 
 /*
- * Loading state: a Suspense boundary inside the page instead of a route-level loading.tsx. With Next.js 15.5,
- * a loading.tsx at this level made some client-side navigations within the same series (season tabs,
- * breadcrumb back from an episode) never commit.
+ * No loading.tsx or Suspense boundary on the series pages: with Next.js 15.5 either one stopped client-side
+ * updates of this page from showing (season tabs, the breadcrumb back from an episode, and the refreshed
+ * progress after marking an episode watched). The page is rendered in one piece instead.
  */
 type Props = {
   params: Promise<{ id: string }>;
@@ -26,13 +26,7 @@ export default async function SeriesPage({ params, searchParams }: Props) {
   const { sezon } = await searchParams;
   if (sezon && /^\d+$/.test(sezon)) redirect(`/series/${id}/season/${sezon}`);
 
-  return (
-    <Suspense fallback={<SeriesSkeleton />}>
-      <SeriesContent id={id} />
-    </Suspense>
-  );
-}
-
-async function SeriesContent({ id }: { id: string }) {
-  return <SeriesView id={id} series={await loadSeries(id)} />;
+  const [series, user] = await Promise.all([loadSeries(id), getCurrentUser()]);
+  const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
+  return <SeriesView id={id} series={series} viewer={viewer} />;
 }

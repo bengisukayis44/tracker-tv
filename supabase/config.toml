@@ -11,3 +11,7 @@ minimum_password_length = 8
 [auth.email]
 enable_signup = true
 enable_confirmations = false
+
+[auth.rate_limit]
+# Sign-in/sign-up requests reach Supabase from our server (Vercel), so this works as a site-wide limit
+sign_in_sign_ups = 150
