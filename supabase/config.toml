@@ -3,8 +3,8 @@
 project_id = "tracker-tv"
 
 [auth]
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/**"]
+site_url = "https://tracker-tv-seven.vercel.app"
+additional_redirect_urls = ["https://tracker-tv-seven.vercel.app/**", "http://localhost:3000/**"]
 enable_signup = true
 minimum_password_length = 8
 

@@ -13,6 +13,13 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   Diziden bir bölüm izlenince dizi "Daha sonra izle" listesinden otomatik çıkar (favoriler kalır).
 - Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
 
+## Canlı site
+
+**https://tracker-tv-seven.vercel.app** — Vercel (Hobby plan), sunucu bölgesi Frankfurt (`vercel.json`, veritabanının yanında).
+Elle yayın: `vercel deploy --prod`. Canlı siteye karşı test: `E2E_BASE_URL=https://tracker-tv-seven.vercel.app npm run test:e2e`.
+Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OMDB_API_KEY`
+(`DIRECT_URL` ve `SUPABASE_SECRET_KEY` canlıda gerekmez, eklenmemeli).
+
 ## Sayfalar
 
 | Yol | Sayfa |

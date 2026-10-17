@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3100;
+// Set E2E_BASE_URL to run the suite against a deployed site instead of a local production build
+const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
 /**
  * End-to-end tests against a production build (`next build && next start`) on port 3100,
@@ -18,7 +20,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   globalTeardown: "./tests/e2e/global-teardown.ts",
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    baseURL: BASE_URL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     locale: "tr-TR",
@@ -28,11 +30,13 @@ export default defineConfig({
     { name: "masaustu", use: { ...devices["Desktop Chrome"] } },
     { name: "mobil", use: { ...devices["Pixel 7"] } },
   ],
-  webServer: {
-    command: `npx next build && npx next start -p ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    env: { NEXT_DIST_DIR: ".next-e2e" },
-    timeout: 300_000,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: `npx next build && npx next start -p ${PORT}`,
+        url: `http://localhost:${PORT}`,
+        env: { NEXT_DIST_DIR: ".next-e2e" },
+        timeout: 300_000,
+        reuseExistingServer: !process.env.CI,
+      },
 });
