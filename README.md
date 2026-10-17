@@ -7,61 +7,83 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 | Yol | Sayfa |
 |---|---|
-| `/search?q=…&tur=hepsi\|dizi\|film` | Arama (film filtresi TMDB gelene kadar boş) |
-| `/series/[id]?sezon=N` | Dizi detay + sezon/bölüm listesi (`id` = TVmaze kimliği) |
+| `/search?q=…&tur=hepsi\|dizi\|film` | Arama (film filtresi, film kaynağı eklenene kadar boş) |
+| `/series/[id]` | Dizi detay + ilk sezonun bölümleri (`id` = TVmaze kimliği) |
+| `/series/[id]/season/[s]` | Aynı sayfa, seçili sezonla (eski `?sezon=N` adresleri buraya yönlenir) |
 | `/series/[id]/season/[s]/episode/[e]` | Bölüm sayfası, önceki/sonraki bölüm |
-| `/login`, `/register` | Giriş / kayıt |
+| `/login`, `/register` | Giriş (e-posta veya kullanıcı adı) / kayıt |
 
 ## Teknolojiler
 
-- Next.js 15 (App Router) + TypeScript
-- Tailwind CSS 4 + shadcn/ui
-- Prisma 7 + PostgreSQL (Supabase, Frankfurt, ücretsiz plan) — `@prisma/adapter-pg`
-- Auth.js (NextAuth v5): e-posta/şifre + isteğe bağlı Google
-- İçerik verisi: TVmaze API (anahtarsız). TMDB + OMDb'ye ileride geçilecek.
+- Next.js 15 (App Router) + TypeScript, Tailwind CSS 4 + shadcn/ui
+- Supabase: PostgreSQL (Frankfurt, ücretsiz plan) + Supabase Auth (e-posta/şifre, e-posta doğrulaması kapalı)
+- Prisma 7 (`@prisma/adapter-pg`)
+- İçerik: TVmaze API (anahtarsız) · IMDb puanları: OMDb API (`OMDB_API_KEY`)
+- Testler: Vitest (birim) + Playwright (uçtan uca, masaüstü ve mobil)
 
 ## Kurulum
 
 ```bash
 npm install
-cp .env.example .env   # Supabase adreslerini ve AUTH_SECRET'i doldurun
+cp .env.example .env        # Supabase adresleri/anahtarları ve OMDb anahtarını doldurun
 npx prisma migrate deploy   # tabloları Supabase'e kurar (ilk kurulumda)
-npm run dev            # http://localhost:3000
+npm run dev                 # http://localhost:3000
 ```
+
+## Testler
+
+```bash
+npm test             # birim testleri (Vitest) — saniyeler sürer, ağ gerektirmez
+npm run test:e2e     # uçtan uca testler (Playwright) — üretim derlemesi alıp 3100 portunda çalıştırır
+```
+
+Uçtan uca testler gerçek Supabase veritabanını ve TVmaze'i kullanır. `@e2e.test` ile biten test hesapları
+açar ve tur bitince siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
+GitHub'da her push'ta lint, tip kontrolü, birim testleri ve derleme otomatik çalışır (`.github/workflows/ci.yml`);
+uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde çalışır.
 
 ## Klasör yapısı
 
 | Yol | İçerik |
 |---|---|
 | `prisma/schema.prisma` | Veri modeli |
-| `src/auth.ts` | Auth.js yapılandırması |
+| `prisma/migrations/` | Migration'lar (RLS ve Supabase Auth tetikleyicileri dahil) |
+| `supabase/config.toml` | Supabase Auth ayarları (`supabase config push` ile uygulanır) |
+| `src/middleware.ts`, `src/lib/supabase/`, `src/lib/auth.ts` | Oturum yenileme ve oturumdaki kullanıcı |
 | `src/app/(auth)/` | Giriş / kayıt sayfaları ve server action'lar |
-| `src/lib/tvmaze.ts` | TVmaze API istemcisi |
-| `src/lib/catalog.ts` | İçerik katmanı: TVmaze verisini veritabanına önbellekler |
-| `src/app/api/search`, `src/app/api/series/[tvmazeId]` | Arama ve dizi detay JSON uçları |
+| `src/lib/tvmaze.ts`, `src/lib/omdb.ts` | Dış API istemcileri |
+| `src/lib/catalog.ts` | İçerik katmanı: TVmaze ve OMDb verisini veritabanına önbellekler |
+| `tests/unit/`, `tests/e2e/` | Birim ve uçtan uca testler |
 | `legacy-vite/` | Eski Vite + localStorage sürümü (referans için) |
 
-## Önbellekleme
+## Kimlik doğrulama (Supabase Auth)
 
-Bir dizi ilk açıldığında TVmaze'den çekilip `Title` / `Season` / `Episode` tablolarına yazılır.
-Sonraki isteklerde veritabanından okunur; devam eden diziler 1 günde, bitmiş diziler 7 günde bir yenilenir.
-TVmaze'e ulaşılamazsa eski veri gösterilir.
+- Şifreler ve oturumlar Supabase Auth'ta (`auth.users`). Uygulamanın `User` tablosu profil tablosudur;
+  `auth.users`'a eklenen/silinen her kullanıcı için veritabanı tetikleyicisi profili oluşturur/siler.
+- Kayıtta seçilen kullanıcı adı Supabase'e metadata olarak gider; tetikleyici onu profile yazar.
+- E-posta doğrulaması kapalı: Supabase'in hazır e-posta servisi yalnızca ekip üyelerine, saatte 2 e-posta
+  gönderebiliyor. Şifre sıfırlama gibi e-postalar için ileride özel bir SMTP (ör. Resend) bağlanmalı.
+- Ücretsiz plan: ayda 50.000 aktif kullanıcı.
 
 ## Veritabanı (Supabase)
 
-- Proje: `tracker-tv` (Frankfurt, ücretsiz plan). Uygulama transaction pooler'a (`DATABASE_URL`, 6543),
-  Prisma CLI session pooler'a (`DIRECT_URL`, 5432) bağlanır.
-- Supabase `public` şemasını Data API (PostgREST) ile dışarı açtığı için **tüm tablolarda RLS açık ve politika yok**:
+- Uygulama transaction pooler'a (`DATABASE_URL`, 6543), Prisma CLI session pooler'a (`DIRECT_URL`, 5432) bağlanır.
+- Supabase `public` şemasını Data API ile dışarı açtığı için **tüm tablolarda RLS açık ve politika yok**:
   anon/authenticated rolleri hiçbir satırı göremez. Uygulama tablo sahibi olarak bağlandığından etkilenmez.
   Yeni tablo eklerken migration'a `ALTER TABLE "..." ENABLE ROW LEVEL SECURITY;` eklemeyi unutmayın.
-- Uzun dizilerin bölümleri tek tek değil, toplu SQL (`INSERT ... ON CONFLICT`) ile kaydedilir.
+- Ücretsiz plan: 500 MB veritabanı, 5 GB trafik; proje 1 hafta kullanılmazsa duraklatılır (panelden açılır).
+
+## Önbellekleme
+
+- Bir dizi ilk açıldığında TVmaze'den çekilip `Title` / `Season` / `Episode` tablolarına toplu SQL ile yazılır.
+  Devam eden diziler 1 günde, bitmiş diziler 7 günde bir yenilenir. TVmaze'e ulaşılamazsa eski veri gösterilir;
+  geçici hatalar (bağlantı, 502-504, 429) otomatik tekrar denenir.
+- IMDb puanları sayfa gönderildikten sonra arka planda OMDb'den çekilir (dizi başına 1 + sezon sayısı istek)
+  ve 7 gün saklanır. OMDb ücretsiz anahtarı günde 1.000 istek verir; limit dolarsa ertesi gün tekrar denenir.
+- Arama sonuçları 10 dakika bellekte tutulur. IMDb puanı yoksa TVmaze puanı gösterilir; kaynak her zaman yazılır.
 
 ## Plandan sapmalar
 
-- **JSON alanlar:** `genres` ve `emotions` SQLite döneminden kalma olarak JSON; PostgreSQL'de native
-  dizilere (`String[]`, `Emotion[]`) çevrilebilir.
-- **TVmaze:** TMDB/OMDb anahtarları alınana kadar. TVmaze'de film ve IMDb puanı yok; `imdbRating` alanları
-  şimdilik boş kalıyor, `imdbId` ise dolduruluyor (OMDb geçişinde kullanılacak).
-  Puan olarak şimdilik TVmaze kullanıcı puanı (`sourceRating`) gösteriliyor ve "TVmaze" etiketiyle işaretleniyor.
-- **Auth.js modelleri:** `Account`, `Session`, `VerificationToken` ve `User` üzerinde `name`, `emailVerified`,
-  `image` (avatar) ve `passwordHash` alanları eklendi.
+- **TVmaze:** Film içermediği için film araması/sayfası henüz yok; `tmdbId` alanı ileride TMDB için duruyor.
+- **Sezon adresi:** `/series/[id]/season/[s]` (planda yoktu). Next.js 15.5'te yalnızca `?sezon=` değişen
+  gezinmeler ekrana gelmiyordu; ayrıca dizi sayfasında `loading.tsx` yerine sayfa içi `Suspense` kullanılıyor.

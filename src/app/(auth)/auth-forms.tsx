@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginSchema, registerSchema, type LoginInput, type RegisterInput } from "@/lib/validations/auth";
-import { googleSignInAction, loginAction, registerAction } from "./actions";
+import { loginAction, registerAction } from "./actions";
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -25,16 +25,6 @@ function FormError({ message }: { message?: string }) {
     >
       {message}
     </div>
-  );
-}
-
-export function GoogleButton({ callbackUrl }: { callbackUrl?: string }) {
-  return (
-    <form action={googleSignInAction.bind(null, callbackUrl)}>
-      <Button type="submit" variant="outline" className="w-full">
-        Google ile devam et
-      </Button>
-    </form>
   );
 }
 

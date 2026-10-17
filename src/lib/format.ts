@@ -65,7 +65,11 @@ export function genreLabel(genre: string): string {
   return GENRE_LABELS[genre] ?? genre;
 }
 
-/** Genres are stored as a JSON column; guard against unexpected shapes. */
-export function parseGenres(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((g): g is string => typeof g === "string") : [];
+export type DisplayRating = { value: number; source: "IMDb" | "TVmaze" };
+
+/** IMDb rating when known, otherwise the TVmaze user rating, always labelled with its source. */
+export function pickRating(imdbRating: number | null | undefined, sourceRating: number | null | undefined) {
+  if (imdbRating != null) return { value: imdbRating, source: "IMDb" } satisfies DisplayRating;
+  if (sourceRating != null) return { value: sourceRating, source: "TVmaze" } satisfies DisplayRating;
+  return null;
 }

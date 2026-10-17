@@ -6,7 +6,7 @@ import { PosterCard } from "@/components/poster-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { searchTitles, type SearchResult } from "@/lib/catalog";
-import { genreLabel, statusLabel } from "@/lib/format";
+import { genreLabel, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Ara" };
@@ -120,7 +120,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 href={`/series/${r.tvmazeId}`}
                 title={r.name}
                 posterUrl={r.posterUrl}
-                rating={r.sourceRating}
+                rating={pickRating(r.imdbRating, r.sourceRating)}
                 badge="Dizi"
                 subtitle={[r.year, statusLabel(r.status), r.genres[0] && genreLabel(r.genres[0])]
                   .filter(Boolean)

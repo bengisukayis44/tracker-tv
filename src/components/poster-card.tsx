@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
+import type { DisplayRating } from "@/lib/format";
 
 export function PosterCard({
   href,
@@ -14,7 +15,7 @@ export function PosterCard({
   title: string;
   posterUrl: string | null;
   subtitle?: string | null;
-  rating?: number | null;
+  rating?: DisplayRating | null;
   badge?: string | null;
 }) {
   return (
@@ -36,10 +37,13 @@ export function PosterCard({
             Poster yok
           </div>
         )}
-        {rating != null && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-amber-400 backdrop-blur">
+        {rating && (
+          <span
+            title={`${rating.source} puanı`}
+            className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-amber-400 backdrop-blur"
+          >
             <Star className="size-3 fill-current" />
-            {rating.toFixed(1)}
+            {rating.value.toFixed(1)}
           </span>
         )}
         {badge && (

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { RatingBadge } from "@/components/rating-badge";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
-import { episodeCode, formatDate, formatRuntime } from "@/lib/format";
+import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
 import { loadSeries } from "../../../../data";
 
 type Props = { params: Promise<{ id: string; s: string; e: string }> };
@@ -38,7 +38,7 @@ export default async function EpisodePage({ params }: Props) {
           {series.name}
         </Link>
         <ChevronRight className="size-3.5" />
-        <Link href={`/series/${id}?sezon=${season.seasonNumber}`} className="hover:text-foreground font-medium">
+        <Link href={`/series/${id}/season/${season.seasonNumber}`} className="hover:text-foreground font-medium">
           {seasonLabel}
         </Link>
         <ChevronRight className="size-3.5" />
@@ -61,7 +61,7 @@ export default async function EpisodePage({ params }: Props) {
               {formatRuntime(episode.runtime)}
             </span>
           )}
-          <RatingBadge value={episode.sourceRating} />
+          <RatingBadge rating={pickRating(episode.imdbRating, episode.sourceRating)} />
           {!aired && (
             <span className="rounded border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 text-xs font-semibold text-orange-400">
               Henüz yayınlanmadı

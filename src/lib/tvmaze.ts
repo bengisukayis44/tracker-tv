@@ -6,6 +6,7 @@
 
 const BASE_URL = "https://api.tvmaze.com";
 const MAX_RETRIES = 3;
+const MAX_GATEWAY_RETRIES = 2;
 
 type TvmazeImage = { medium: string; original: string } | null;
 
@@ -71,18 +72,30 @@ export class TvmazeError extends Error {
 const REQUEST_TIMEOUT_MS = 15_000;
 
 function isRetryable(status: number, attempt: number) {
-  // Rate limit: back off and retry; gateway errors are usually transient, so retry once
-  return (status === 429 && attempt < MAX_RETRIES) || (status >= 502 && status <= 504 && attempt < 1);
+  // Rate limit: back off and retry; gateway errors (502-504) are usually transient, so retry twice
+  return (status === 429 && attempt < MAX_RETRIES) || (status >= 502 && status <= 504 && attempt < MAX_GATEWAY_RETRIES);
 }
 
+const backoff = (attempt: number) => new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+
 async function tvmazeFetch<T>(path: string, attempt = 0): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Connection failures and timeouts are retried like gateway errors
+    if (attempt < MAX_GATEWAY_RETRIES) {
+      await backoff(attempt);
+      return tvmazeFetch<T>(path, attempt + 1);
+    }
+    throw new TvmazeError(`TVmaze'e ulaşılamadı: ${path} (${error instanceof Error ? error.message : error})`);
+  }
 
   if (isRetryable(res.status, attempt)) {
-    await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    await backoff(attempt);
     return tvmazeFetch<T>(path, attempt + 1);
   }
   if (!res.ok) {

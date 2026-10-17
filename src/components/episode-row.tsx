@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Calendar, Clock, Star } from "lucide-react";
-import { episodeCode, formatDate, formatRuntime } from "@/lib/format";
+import { episodeCode, formatDate, formatRuntime, type DisplayRating } from "@/lib/format";
 
 export function EpisodeRow({
   href,
@@ -23,7 +23,7 @@ export function EpisodeRow({
   stillUrl: string | null;
   airDate: Date | null;
   runtime: number | null;
-  rating: number | null;
+  rating: DisplayRating | null;
   aired: boolean;
 }) {
   return (
@@ -49,10 +49,13 @@ export function EpisodeRow({
           <h3 className="group-hover:text-primary line-clamp-1 text-sm font-bold transition-colors">
             {episodeNumber}. {name}
           </h3>
-          {rating != null && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-amber-400">
+          {rating && (
+            <span
+              title={`${rating.source} puanı`}
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-amber-400"
+            >
               <Star className="size-3 fill-current" />
-              {rating.toFixed(1)}
+              {rating.value.toFixed(1)}
             </span>
           )}
         </div>

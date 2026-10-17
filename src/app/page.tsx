@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 // Faz 1 placeholder; "İzlemeye devam et", "Daha sonra izle" and trends arrive in Faz 5
 export default async function HomePage() {
-  const session = await auth();
+  const user = await getCurrentUser();
 
   return (
     <section className="mx-auto max-w-2xl space-y-6 py-12 text-center">
       <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-        {session ? `Hoş geldin, @${session.user.username}` : "İzlediklerini takip et"}
+        {user ? `Hoş geldin, @${user.username}` : "İzlediklerini takip et"}
       </h1>
       <p className="text-muted-foreground">
         Dizi ve filmlerini takip et, bölümleri puanla, hislerini kaydet ve spoiler korumalı yorumları oku.
@@ -21,7 +21,7 @@ export default async function HomePage() {
           Ara
         </Button>
       </form>
-      {!session && (
+      {!user && (
         <div className="flex justify-center gap-3">
           <Button asChild size="lg">
             <Link href="/register">Hemen başla</Link>

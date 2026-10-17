@@ -1,0 +1,13 @@
+# Supabase Auth ayarları — uygulamak için: supabase config push --project-ref krfbirijwpzzmxwlesfg
+# Sadece burada yazan ayarlar gönderilir; diğerleri panelde olduğu gibi kalır.
+project_id = "tracker-tv"
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+enable_signup = true
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false

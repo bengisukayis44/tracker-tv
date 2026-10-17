@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function SeriesLoading() {
+/** Placeholder shown while a series is loaded (first visits fetch it from TVmaze). */
+export function SeriesSkeleton() {
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-6 rounded-3xl border p-5 sm:p-8 md:flex-row">

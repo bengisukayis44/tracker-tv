@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LogOut, Search, Tv } from "lucide-react";
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/app/(auth)/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export async function SiteHeader() {
-  const session = await auth();
-  const user = session?.user;
+  const user = await getCurrentUser();
 
   return (
     <header className="bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
@@ -40,7 +39,7 @@ export async function SiteHeader() {
               <DropdownMenuTrigger asChild>
                 <button className="rounded-full" aria-label="Hesap menüsü">
                   <Avatar>
-                    {user.image && <AvatarImage src={user.image} alt={user.username} />}
+                    {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.username} />}
                     <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                 </button>

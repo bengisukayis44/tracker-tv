@@ -1,11 +1,11 @@
 // Veri modeli — PROJE_PLANI.md §3
 //
 // Plandan bilinçli sapmalar:
-// - Veritabanı: Supabase PostgreSQL. `genres` ve `emotions` SQLite döneminden kalma olarak JSON dizisi;
-//   istenirse native dizilere (String[], Emotion[]) çevrilebilir.
-// - İçerik kaynağı şimdilik TVmaze: `tvmazeId` alanları eklendi, `tmdbId` TMDB'ye geçişte doldurulacak.
-// - Auth.js (NextAuth) için gereken Account/Session/VerificationToken modelleri ve
-//   User üzerindeki name/emailVerified/image/passwordHash alanları eklendi. `image` = avatar.
+// - Veritabanı: Supabase PostgreSQL. Kimlik doğrulama Supabase Auth'ta (auth.users);
+//   `User` uygulamanın profil tablosudur ve id'si auth.users.id ile aynıdır. Profil satırı
+//   auth.users'a eklenen her kullanıcı için veritabanı tetikleyicisiyle oluşturulur/silinir.
+// - İçerik kaynağı TVmaze (+ IMDb puanları için OMDb): `tvmazeId` alanları eklendi,
+//   `tmdbId` ileride TMDB'ye geçilirse doldurulacak.
 
 generator client {
   provider = "prisma-client"
@@ -21,7 +21,6 @@ enum TitleType {
   SERIES
 }
 
-// WatchedEpisode.emotions / WatchedMovie.emotions JSON dizisindeki geçerli değerler
 enum Emotion {
   HUZUNLU
   MUTLU
@@ -37,60 +36,20 @@ enum Emotion {
 
 // ---------- Kullanıcı ve kimlik doğrulama ----------
 
+// Profil — id = auth.users.id (Supabase Auth). Şifre ve oturumlar Supabase Auth'ta tutulur.
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  email         String    @unique
-  name          String?
-  emailVerified DateTime?
-  image         String? // avatar URL
-  passwordHash  String? // Google ile girenlerde boş
-  createdAt     DateTime  @default(now())
+  id        String   @id
+  username  String   @unique
+  email     String   @unique
+  avatarUrl String?
+  createdAt DateTime @default(now())
 
-  accounts        Account[]
-  sessions        Session[]
   watchedEpisodes WatchedEpisode[]
   watchedMovies   WatchedMovie[]
   comments        Comment[]
   commentLikes    CommentLike[]
   favorites       Favorite[]
   watchlist       WatchlistItem[]
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
 }
 
 // ---------- İçerik (dış API önbelleği) ----------
@@ -110,8 +69,9 @@ model Title {
   runtime      Int? // film için dakika; dizide ortalama bölüm süresi
   releaseDate  DateTime?
   status       String? // ör. Running / Ended
-  genres       Json      @default("[]") // string[]
+  genres       String[]  @default([])
   lastSyncedAt DateTime?
+  imdbSyncedAt DateTime? // OMDb puanlarının son çekildiği zaman
 
   seasons    Season[]
   comments   Comment[]
@@ -159,13 +119,13 @@ model Episode {
 // ---------- İzleme takibi ----------
 
 model WatchedEpisode {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   episodeId String
   rating    Int? // 1-10
-  emotions  Json     @default("[]") // Emotion[]
+  emotions  Emotion[] @default([])
   note      String? // kişisel not (sadece kullanıcı görür)
-  watchedAt DateTime @default(now())
+  watchedAt DateTime  @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
@@ -174,13 +134,13 @@ model WatchedEpisode {
 }
 
 model WatchedMovie {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   titleId   String
   rating    Int?
-  emotions  Json     @default("[]") // Emotion[]
+  emotions  Emotion[] @default([])
   note      String?
-  watchedAt DateTime @default(now())
+  watchedAt DateTime  @default(now())
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)

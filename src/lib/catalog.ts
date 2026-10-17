@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { omdb, OmdbError, isOmdbEnabled } from "@/lib/omdb";
 import { prisma } from "@/lib/prisma";
 import { pickBackdrop, stripHtml, tvmaze, type TvmazeShow, type TvmazeShowWithEmbeds } from "@/lib/tvmaze";
 
@@ -14,6 +15,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const REFRESH_INTERVAL_RUNNING_MS = 1 * DAY_MS;
 const REFRESH_INTERVAL_DEFAULT_MS = 7 * DAY_MS;
 const EPISODE_BATCH_SIZE = 500;
+// OMDb free keys allow 1,000 requests/day; IMDb ratings change slowly
+const IMDB_REFRESH_INTERVAL_MS = 7 * DAY_MS;
+const OMDB_CONCURRENCY = 4;
 
 export type SearchResult = {
   tvmazeId: number;
@@ -23,6 +27,7 @@ export type SearchResult = {
   year: number | null;
   status: string | null;
   sourceRating: number | null;
+  imdbRating: number | null; // only known for titles already in the cache
   genres: string[];
   overview: string | null;
 };
@@ -36,15 +41,39 @@ function toSearchResult(show: TvmazeShow): SearchResult {
     year: show.premiered ? Number(show.premiered.slice(0, 4)) : null,
     status: show.status ?? null,
     sourceRating: show.rating?.average ?? null,
+    imdbRating: null,
     genres: show.genres ?? [],
     overview: stripHtml(show.summary),
   };
 }
 
-/** Search results are not stored; only opened titles are cached. */
+// Search results are kept briefly in memory: popular queries repeat a lot and TVmaze is rate-limited
+const SEARCH_CACHE_TTL_MS = 10 * 60 * 1000;
+const SEARCH_CACHE_MAX_ENTRIES = 200;
+const searchCache = new Map<string, { expires: number; results: SearchResult[] }>();
+
+async function searchTvmazeCached(query: string): Promise<SearchResult[]> {
+  const key = query.trim().toLocaleLowerCase("tr-TR");
+  const hit = searchCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.results;
+
+  const results = (await tvmaze.searchShows(query)).map(toSearchResult);
+  if (searchCache.size >= SEARCH_CACHE_MAX_ENTRIES) searchCache.delete(searchCache.keys().next().value!);
+  searchCache.set(key, { expires: Date.now() + SEARCH_CACHE_TTL_MS, results });
+  return results;
+}
+
+/** Search results are not stored in the database; only opened titles are (their IMDb rating is added if known). */
 export async function searchTitles(query: string): Promise<SearchResult[]> {
-  const shows = await tvmaze.searchShows(query);
-  return shows.map(toSearchResult);
+  const results = await searchTvmazeCached(query);
+  if (results.length === 0) return results;
+
+  const cached = await prisma.title.findMany({
+    where: { tvmazeId: { in: results.map((r) => r.tvmazeId) }, imdbRating: { not: null } },
+    select: { tvmazeId: true, imdbRating: true },
+  });
+  const imdbByTvmazeId = new Map(cached.map((t) => [t.tvmazeId, t.imdbRating]));
+  return results.map((r) => ({ ...r, imdbRating: imdbByTvmazeId.get(r.tvmazeId) ?? null }));
 }
 
 export function isStale(lastSyncedAt: Date | null, status: string | null, now = Date.now()) {
@@ -166,3 +195,73 @@ export async function getSeries(tvmazeId: number) {
 }
 
 export type Series = Awaited<ReturnType<typeof getSeries>>;
+
+// ---------- IMDb ratings (OMDb) ----------
+
+export function needsImdbSync(title: { imdbId: string | null; imdbSyncedAt: Date | null }, now = Date.now()): boolean {
+  if (!title.imdbId || !isOmdbEnabled()) return false;
+  return !title.imdbSyncedAt || now - title.imdbSyncedAt.getTime() > IMDB_REFRESH_INTERVAL_MS;
+}
+
+/** Runs async tasks with at most `limit` in flight. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+const imdbSyncInFlight = new Set<string>();
+
+/**
+ * Fetches the series and per-episode IMDb ratings from OMDb (1 + number of seasons requests) and stores them.
+ * Meant to run after the response is sent (see scheduleImdbSync). Failures are logged, not thrown, and leave
+ * imdbSyncedAt untouched so the next visit retries.
+ */
+export async function syncImdbRatings(titleId: string): Promise<void> {
+  if (imdbSyncInFlight.has(titleId)) return;
+  imdbSyncInFlight.add(titleId);
+  try {
+    const title = await prisma.title.findUnique({
+      where: { id: titleId },
+      select: { imdbId: true, imdbSyncedAt: true, seasons: { select: { seasonNumber: true } } },
+    });
+    if (!title?.imdbId || !needsImdbSync(title)) return;
+    const imdbId = title.imdbId;
+
+    const titleRating = await omdb.getTitleRating(imdbId);
+    const seasonNumbers = title.seasons.map((s) => s.seasonNumber).filter((n) => n > 0);
+    const perSeason = await mapWithConcurrency(seasonNumbers, OMDB_CONCURRENCY, async (season) =>
+      (await omdb.getSeasonRatings(imdbId, season)).map((ep) => ({ season, ...ep })),
+    );
+    const rows = perSeason.flat();
+
+    if (rows.length > 0) {
+      await prisma.$executeRaw`
+        UPDATE "Episode" AS e
+        SET "imdbId" = x."imdbId", "imdbRating" = x."rating"
+        FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+          AS x("season" int, "episode" int, "imdbId" text, "rating" double precision),
+          "Season" AS s
+        WHERE e."seasonId" = s."id"
+          AND s."titleId" = ${titleId}
+          AND s."seasonNumber" = x."season"
+          AND e."episodeNumber" = x."episode"`;
+    }
+    await prisma.title.update({ where: { id: titleId }, data: { imdbRating: titleRating, imdbSyncedAt: new Date() } });
+  } catch (error) {
+    if (error instanceof OmdbError && error.kind === "limit") {
+      console.warn("OMDb günlük istek limiti doldu; IMDb puanları yarın güncellenecek.");
+    } else {
+      console.error(`IMDb puanları güncellenemedi (titleId=${titleId}):`, error);
+    }
+  } finally {
+    imdbSyncInFlight.delete(titleId);
+  }
+}
