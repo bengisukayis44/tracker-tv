@@ -5,6 +5,7 @@ import { watchEpisodeSchema, watchMovieSchema } from "@/lib/validations/watch";
 import {
   airedEpisodeIds,
   isSeasonWatched,
+  nextEpisode,
   orderedEpisodes,
   previousUnwatchedEpisodeIds,
   watchProgress,
@@ -14,7 +15,11 @@ const now = new Date("2026-06-01T00:00:00Z");
 const PAST = "2020-01-01T00:00:00Z";
 const FUTURE = "2027-01-01T00:00:00Z";
 
-const ep = (id: string, episodeNumber: number, airDate: string | null = PAST) => ({
+const ep = (
+  id: string,
+  episodeNumber: number,
+  airDate: string | null = PAST,
+) => ({
   id,
   episodeNumber,
   airDate: airDate ? new Date(airDate) : null,
@@ -29,19 +34,38 @@ const seasons = [
 
 describe("orderedEpisodes", () => {
   it("orders by season then episode and leaves specials out", () => {
-    expect(orderedEpisodes(seasons).map((x) => x.episode.id)).toEqual(["s1e1", "s1e2", "s1e3", "s2e1", "s2e2"]);
+    expect(orderedEpisodes(seasons).map((x) => x.episode.id)).toEqual([
+      "s1e1",
+      "s1e2",
+      "s1e3",
+      "s2e1",
+      "s2e2",
+    ]);
   });
 });
 
 describe("previousUnwatchedEpisodeIds", () => {
   it("returns earlier aired episodes that are not watched, across seasons", () => {
-    expect(previousUnwatchedEpisodeIds(seasons, "s2e1", new Set(["s1e2"]), now)).toEqual(["s1e1", "s1e3"]);
+    expect(
+      previousUnwatchedEpisodeIds(seasons, "s2e1", new Set(["s1e2"]), now),
+    ).toEqual(["s1e1", "s1e3"]);
   });
 
   it("is empty for the first episode, when everything before is watched, or for unknown ids", () => {
-    expect(previousUnwatchedEpisodeIds(seasons, "s1e1", new Set(), now)).toEqual([]);
-    expect(previousUnwatchedEpisodeIds(seasons, "s1e3", new Set(["s1e1", "s1e2"]), now)).toEqual([]);
-    expect(previousUnwatchedEpisodeIds(seasons, "nope", new Set(), now)).toEqual([]);
+    expect(
+      previousUnwatchedEpisodeIds(seasons, "s1e1", new Set(), now),
+    ).toEqual([]);
+    expect(
+      previousUnwatchedEpisodeIds(
+        seasons,
+        "s1e3",
+        new Set(["s1e1", "s1e2"]),
+        now,
+      ),
+    ).toEqual([]);
+    expect(
+      previousUnwatchedEpisodeIds(seasons, "nope", new Set(), now),
+    ).toEqual([]);
   });
 
   it("never offers unaired or special episodes", () => {
@@ -49,17 +73,72 @@ describe("previousUnwatchedEpisodeIds", () => {
       { seasonNumber: 1, episodes: [ep("a", 1, FUTURE), ep("b", 2)] },
       { seasonNumber: 0, episodes: [ep("special", 1)] },
     ];
-    expect(previousUnwatchedEpisodeIds(withUnairedBefore, "b", new Set(), now)).toEqual([]);
+    expect(
+      previousUnwatchedEpisodeIds(withUnairedBefore, "b", new Set(), now),
+    ).toEqual([]);
+  });
+});
+
+describe("nextEpisode", () => {
+  const ids = (r: ReturnType<typeof nextEpisode>) => [
+    r.last?.episode.id ?? null,
+    r.next?.episode.id ?? null,
+  ];
+
+  it("continues after the furthest watched episode, across seasons", () => {
+    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s1e2"]), now))).toEqual([
+      "s1e2",
+      "s1e3",
+    ]);
+    expect(ids(nextEpisode(seasons, new Set(["s1e3"]), now))).toEqual([
+      "s1e3",
+      "s2e1",
+    ]);
+  });
+
+  it("goes by the furthest episode even with gaps before it", () => {
+    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s2e1"]), now))).toEqual([
+      "s2e1",
+      null,
+    ]);
+  });
+
+  it("has no next episode when caught up (the rest has not aired) or nothing is watched", () => {
+    expect(
+      ids(nextEpisode(seasons, new Set(["s1e1", "s1e2", "s1e3", "s2e1"]), now)),
+    ).toEqual(["s2e1", null]);
+    expect(ids(nextEpisode(seasons, new Set(), now))).toEqual([null, null]);
+    // Specials do not count as progress
+    expect(ids(nextEpisode(seasons, new Set(["special"]), now))).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it("skips unaired episodes to the next aired one", () => {
+    const gap = [
+      {
+        seasonNumber: 1,
+        episodes: [ep("a", 1), ep("b", 2, FUTURE), ep("c", 3)],
+      },
+    ];
+    expect(ids(nextEpisode(gap, new Set(["a"]), now))).toEqual(["a", "c"]);
   });
 });
 
 describe("watchProgress", () => {
   it("counts watched regular episodes against all regular episodes", () => {
-    expect(watchProgress(seasons, new Set(["s1e1", "s2e1", "special"]))).toEqual({ watched: 2, total: 5, percent: 40 });
+    expect(
+      watchProgress(seasons, new Set(["s1e1", "s2e1", "special"])),
+    ).toEqual({ watched: 2, total: 5, percent: 40 });
   });
 
   it("handles shows without episodes", () => {
-    expect(watchProgress([], new Set())).toEqual({ watched: 0, total: 0, percent: 0 });
+    expect(watchProgress([], new Set())).toEqual({
+      watched: 0,
+      total: 0,
+      percent: 0,
+    });
   });
 });
 
@@ -78,10 +157,18 @@ describe("season helpers", () => {
 });
 
 describe("watchEpisodeSchema", () => {
-  const base = { episodeId: "ep1", rating: 8, emotions: ["MUTLU", "GERGIN"], note: "  Harika  " };
+  const base = {
+    episodeId: "ep1",
+    rating: 8,
+    emotions: ["MUTLU", "GERGIN"],
+    note: "  Harika  ",
+  };
 
   it("accepts a full entry, trims the note and drops duplicate emotions", () => {
-    const parsed = watchEpisodeSchema.parse({ ...base, emotions: ["MUTLU", "MUTLU", "GERGIN"] });
+    const parsed = watchEpisodeSchema.parse({
+      ...base,
+      emotions: ["MUTLU", "MUTLU", "GERGIN"],
+    });
     expect(parsed).toEqual({
       episodeId: "ep1",
       rating: 8,
@@ -92,7 +179,14 @@ describe("watchEpisodeSchema", () => {
   });
 
   it("accepts an empty entry (just 'İzledim')", () => {
-    expect(watchEpisodeSchema.parse({ episodeId: "ep1", rating: null, emotions: [], note: "   " })).toEqual({
+    expect(
+      watchEpisodeSchema.parse({
+        episodeId: "ep1",
+        rating: null,
+        emotions: [],
+        note: "   ",
+      }),
+    ).toEqual({
       episodeId: "ep1",
       rating: null,
       emotions: [],
@@ -102,34 +196,69 @@ describe("watchEpisodeSchema", () => {
   });
 
   it.each([0, 11, 7.5])("rejects rating %s", (rating) => {
-    expect(watchEpisodeSchema.safeParse({ ...base, rating }).success).toBe(false);
+    expect(watchEpisodeSchema.safeParse({ ...base, rating }).success).toBe(
+      false,
+    );
   });
 
   it("rejects unknown emotions and overlong notes", () => {
-    expect(watchEpisodeSchema.safeParse({ ...base, emotions: ["UZGUN"] }).success).toBe(false);
-    expect(watchEpisodeSchema.safeParse({ ...base, note: "x".repeat(1001) }).success).toBe(false);
+    expect(
+      watchEpisodeSchema.safeParse({ ...base, emotions: ["UZGUN"] }).success,
+    ).toBe(false);
+    expect(
+      watchEpisodeSchema.safeParse({ ...base, note: "x".repeat(1001) }).success,
+    ).toBe(false);
   });
 
   it("accepts a favorite character id and rejects invalid ones", () => {
-    expect(watchEpisodeSchema.parse({ ...base, favoriteCastId: 71580 }).favoriteCastId).toBe(71580);
-    expect(watchEpisodeSchema.parse({ ...base, favoriteCastId: null }).favoriteCastId).toBeNull();
+    expect(
+      watchEpisodeSchema.parse({ ...base, favoriteCastId: 71580 })
+        .favoriteCastId,
+    ).toBe(71580);
+    expect(
+      watchEpisodeSchema.parse({ ...base, favoriteCastId: null })
+        .favoriteCastId,
+    ).toBeNull();
     for (const favoriteCastId of [0, -3, 1.5, "71580"]) {
-      expect(watchEpisodeSchema.safeParse({ ...base, favoriteCastId }).success).toBe(false);
+      expect(
+        watchEpisodeSchema.safeParse({ ...base, favoriteCastId }).success,
+      ).toBe(false);
     }
   });
 });
 
 describe("watchMovieSchema", () => {
   it("uses the same rules as episodes, keyed by the movie", () => {
-    expect(watchMovieSchema.parse({ titleId: "m1", rating: 9, emotions: ["HEYECANLI"], note: " Süper " })).toEqual({
+    expect(
+      watchMovieSchema.parse({
+        titleId: "m1",
+        rating: 9,
+        emotions: ["HEYECANLI"],
+        note: " Süper ",
+      }),
+    ).toEqual({
       titleId: "m1",
       rating: 9,
       emotions: ["HEYECANLI"],
       note: "Süper",
       favoriteCastId: null,
     });
-    expect(watchMovieSchema.safeParse({ titleId: "", rating: null, emotions: [], note: null }).success).toBe(false);
-    expect(watchMovieSchema.safeParse({ titleId: "m1", rating: 11, emotions: [], note: null }).success).toBe(false);
+    expect(
+      watchMovieSchema.safeParse({
+        titleId: "",
+        rating: null,
+        emotions: [],
+        note: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      watchMovieSchema.safeParse({
+        titleId: "m1",
+        rating: 11,
+        emotions: [],
+        note: null,
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -148,8 +277,13 @@ describe("emotions", () => {
       "EGLENMIS",
     ]);
     // Must stay in sync with the database enum
-    expect(EMOTIONS.map((e) => e.value).sort()).toEqual(Object.values(Emotion).sort());
-    expect(emotionMeta("KORKMUS")).toMatchObject({ label: "Korkmuş", emoji: "😱" });
+    expect(EMOTIONS.map((e) => e.value).sort()).toEqual(
+      Object.values(Emotion).sort(),
+    );
+    expect(emotionMeta("KORKMUS")).toMatchObject({
+      label: "Korkmuş",
+      emoji: "😱",
+    });
     expect(emotionMeta("YOK")).toBeUndefined();
   });
 });

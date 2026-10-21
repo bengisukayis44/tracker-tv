@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { episodeCode, formatDate, formatRuntime, genreLabel, pickRating, statusLabel } from "@/lib/format";
+import {
+  episodeCode,
+  formatDate,
+  formatRuntime,
+  formatWatchTime,
+  genreLabel,
+  pickRating,
+  statusLabel,
+} from "@/lib/format";
 
 describe("formatRuntime", () => {
   it("returns null for missing or zero runtime", () => {
@@ -53,5 +61,27 @@ describe("pickRating", () => {
     expect(pickRating(null, 9.1)).toEqual({ value: 9.1, source: "TMDB" });
     expect(pickRating(0, 9.1)).toEqual({ value: 0, source: "IMDb" });
     expect(pickRating(null, null)).toBeNull();
+  });
+});
+
+describe("formatWatchTime", () => {
+  const HOUR = 60;
+  const DAY = 24 * HOUR;
+  const MONTH = 30 * DAY;
+
+  it.each([
+    [0, "0 saat"],
+    [45, "45 dakika"],
+    [60, "1 saat"],
+    [3 * HOUR + 59, "3 saat"],
+    [DAY, "1 gün"],
+    [2 * DAY + 5 * HOUR, "2 gün 5 saat"],
+    [MONTH, "1 ay"],
+    [3 * MONTH + 2 * DAY + 4 * HOUR, "3 ay 2 gün 4 saat"],
+    [MONTH + 7 * HOUR, "1 ay 7 saat"],
+    [12 * DAY + 7 * HOUR, "12 gün 7 saat"],
+    [-10, "0 saat"],
+  ])("%i dakika → %s", (minutes, expected) => {
+    expect(formatWatchTime(minutes)).toBe(expected);
   });
 });

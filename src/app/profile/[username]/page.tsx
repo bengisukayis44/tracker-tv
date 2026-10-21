@@ -1,0 +1,248 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Bookmark, Clapperboard, Film, Heart, MessageSquare, Tv } from "lucide-react";
+import { SpoilerBlur } from "@/components/comments/spoiler-blur";
+import { EmptyState } from "@/components/empty-state";
+import { PosterCard } from "@/components/poster-card";
+import { ProfileTabs } from "@/components/profile/profile-tabs";
+import { SeriesProgressCard } from "@/components/profile/series-progress-card";
+import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getCurrentUser } from "@/lib/auth";
+import { formatWatchTime } from "@/lib/format";
+import {
+  getFavorites,
+  getProfileUser,
+  getSeriesProgress,
+  getUserComments,
+  getWatchedMovies,
+  getWatchlist,
+  getWatchStats,
+  type ProfileComment,
+} from "@/lib/profile";
+
+type Props = { params: Promise<{ username: string }>; searchParams: Promise<{ sekme?: string }> };
+
+const memberSince = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric", timeZone: "Europe/Istanbul" });
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const user = await getProfileUser(decodeURIComponent((await params).username));
+  return { title: user ? `@${user.username}` : "Kullanıcı bulunamadı" };
+}
+
+export default async function ProfilePage({ params, searchParams }: Props) {
+  const [{ username }, { sekme }] = await Promise.all([params, searchParams]);
+  const [user, viewer] = await Promise.all([getProfileUser(decodeURIComponent(username)), getCurrentUser()]);
+  if (!user) notFound();
+  const isMe = viewer?.id === user.id;
+
+  const [stats, series, movies, favorites, comments, watchlist] = await Promise.all([
+    getWatchStats(user.id),
+    getSeriesProgress(user.id),
+    getWatchedMovies(user.id),
+    getFavorites(user.id),
+    getUserComments(user.id),
+    getWatchlist(user.id),
+  ]);
+  const favoriteSeries = favorites.filter((f) => f.title.type === "SERIES");
+  const favoriteMovies = favorites.filter((f) => f.title.type === "MOVIE");
+  const titleHref = (t: { type: string; tmdbId: number | null }) =>
+    t.type === "MOVIE" ? `/movie/${t.tmdbId}` : `/series/${t.tmdbId}`;
+  const owner = isMe ? "Henüz" : `@${user.username} henüz`;
+
+  return (
+    <div className="space-y-8">
+      <header className="flex items-center gap-4">
+        <Avatar className="size-16 text-xl">
+          {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+          <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <h1 className="truncate text-3xl font-extrabold tracking-tight">@{user.username}</h1>
+          <p className="text-muted-foreground text-sm">{memberSince.format(user.createdAt)}&apos;den beri üye</p>
+        </div>
+      </header>
+
+      <section aria-label="İzleme süresi" className="grid gap-3 sm:grid-cols-2">
+        <WatchTimeStat
+          icon={<Tv />}
+          label="Dizi izleme süresi"
+          value={formatWatchTime(stats.seriesMinutes)}
+          detail={`${stats.episodeCount} bölüm`}
+        />
+        <WatchTimeStat
+          icon={<Film />}
+          label="Film izleme süresi"
+          value={formatWatchTime(stats.movieMinutes)}
+          detail={`${stats.movieCount} film`}
+        />
+      </section>
+
+      <ProfileTabs
+        initial={sekme ?? "diziler"}
+        tabs={[
+          {
+            value: "diziler",
+            label: isMe ? "İzlediğim Diziler" : "İzlediği Diziler",
+            count: series.length,
+            panel:
+              series.length === 0 ? (
+                <EmptyState icon={<Tv />} title="Dizi yok" text={`${owner} bir dizi bölümü izlemedi.`} />
+              ) : (
+                <Grid>
+                  {series.map((s) => (
+                    <SeriesProgressCard key={s.id} series={s} />
+                  ))}
+                </Grid>
+              ),
+          },
+          {
+            value: "filmler",
+            label: isMe ? "İzlediğim Filmler" : "İzlediği Filmler",
+            count: movies.length,
+            panel:
+              movies.length === 0 ? (
+                <EmptyState icon={<Film />} title="Film yok" text={`${owner} bir film izlemedi.`} />
+              ) : (
+                <Grid>
+                  {movies.map((m) => (
+                    <PosterCard
+                      key={m.title.id}
+                      href={titleHref(m.title)}
+                      title={m.title.name}
+                      posterUrl={m.title.posterUrl}
+                      subtitle={[m.title.releaseDate?.getFullYear(), m.rating != null && `Puan: ${m.rating}/10`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  ))}
+                </Grid>
+              ),
+          },
+          {
+            value: "favoriler",
+            label: isMe ? "Favorilerim" : "Favorileri",
+            count: favorites.length,
+            panel:
+              favorites.length === 0 ? (
+                <EmptyState icon={<Heart />} title="Favori yok" text={`${owner} favorilere bir şey eklemedi.`} />
+              ) : (
+                <div className="space-y-8">
+                  {[
+                    { heading: "Favori Diziler", items: favoriteSeries },
+                    { heading: "Favori Filmler", items: favoriteMovies },
+                  ].map(({ heading, items }) => (
+                    <section key={heading} className="space-y-3">
+                      <h2 className="text-lg font-bold">{heading}</h2>
+                      {items.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">Henüz yok.</p>
+                      ) : (
+                        <Grid>
+                          {items.map((f) => (
+                            <PosterCard
+                              key={f.title.id}
+                              href={titleHref(f.title)}
+                              title={f.title.name}
+                              posterUrl={f.title.posterUrl}
+                              subtitle={f.title.releaseDate?.getFullYear()?.toString()}
+                            />
+                          ))}
+                        </Grid>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              ),
+          },
+          {
+            value: "yorumlar",
+            label: isMe ? "Yorumlarım" : "Yorumları",
+            count: comments.length,
+            panel:
+              comments.length === 0 ? (
+                <EmptyState icon={<MessageSquare />} title="Yorum yok" text={`${owner} yorum yazmadı.`} />
+              ) : (
+                <ul className="divide-y">
+                  {comments.map((c) => (
+                    <ProfileCommentItem key={c.id} comment={c} spoilersRevealed={isMe} />
+                  ))}
+                </ul>
+              ),
+          },
+          {
+            value: "sonra",
+            label: "Daha Sonra İzle",
+            count: watchlist.length,
+            panel:
+              watchlist.length === 0 ? (
+                <EmptyState icon={<Bookmark />} title="Liste boş" text={`${owner} listesine bir şey eklemedi.`} />
+              ) : (
+                <Grid>
+                  {watchlist.map((w) => (
+                    <div key={w.title.id} className="space-y-1">
+                      <PosterCard
+                        href={titleHref(w.title)}
+                        title={w.title.name}
+                        posterUrl={w.title.posterUrl}
+                        badge={w.title.type === "MOVIE" ? "Film" : "Dizi"}
+                      />
+                      {isMe && <WatchlistRemoveButton titleId={w.title.id} name={w.title.name} />}
+                    </div>
+                  ))}
+                </Grid>
+              ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{children}</div>;
+}
+
+/** Toplam izleme süresi kartı (PROJE_PLANI.md §8: WatchTimeStat). */
+function WatchTimeStat({
+  icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="bg-card flex items-center gap-4 rounded-2xl border p-5">
+      <span className="bg-primary/10 text-primary rounded-xl p-3 [&_svg]:size-6">{icon}</span>
+      <dl className="min-w-0">
+        <dt className="text-muted-foreground text-sm">{label}</dt>
+        <dd className="text-2xl font-extrabold tracking-tight">{value}</dd>
+        <dd className="text-muted-foreground text-sm">{detail}</dd>
+      </dl>
+    </div>
+  );
+}
+
+function ProfileCommentItem({ comment, spoilersRevealed }: { comment: ProfileComment; spoilersRevealed: boolean }) {
+  const text = <p className="text-foreground/90 break-words whitespace-pre-wrap">{comment.content}</p>;
+  return (
+    <li className="space-y-2 py-4">
+      <Link href={comment.href} className="hover:text-primary inline-flex items-start gap-2 font-semibold">
+        <Clapperboard className="mt-0.5 size-4 shrink-0" />
+        <span>
+          <em className="not-italic">{comment.titleName}</em>
+          {comment.episodeLabel && <span className="text-muted-foreground"> — {comment.episodeLabel}</span>}
+        </span>
+      </Link>
+      {comment.isSpoiler ? <SpoilerBlur initiallyRevealed={spoilersRevealed}>{text}</SpoilerBlur> : text}
+      <p className="text-muted-foreground flex gap-3 text-xs">
+        <time dateTime={comment.createdAt}>{comment.createdLabel}</time>
+        <span>{comment.likeCount} beğeni</span>
+      </p>
+    </li>
+  );
+}

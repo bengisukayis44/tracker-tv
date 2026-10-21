@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isOmdbEnabled, omdb, OmdbError, parseImdbRating } from "@/lib/omdb";
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 beforeEach(() => {
   vi.stubEnv("OMDB_API_KEY", "test-key");
@@ -28,7 +31,9 @@ describe("isOmdbEnabled", () => {
 
 describe("omdb client", () => {
   it("sends the key and IMDb id and returns the rating", async () => {
-    const fetchMock = vi.fn(async () => json({ Response: "True", imdbRating: "9.1" }));
+    const fetchMock = vi.fn(async () =>
+      json({ Response: "True", imdbRating: "9.1" }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await omdb.getTitleRating("tt1475582")).toBe(9.1);
@@ -60,7 +65,9 @@ describe("omdb client", () => {
   it("treats an unknown season as having no ratings", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => json({ Response: "False", Error: "Series or season not found!" })),
+      vi.fn(async () =>
+        json({ Response: "False", Error: "Series or season not found!" }),
+      ),
     );
     expect(await omdb.getSeasonRatings("tt0", 99)).toEqual([]);
   });

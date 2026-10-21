@@ -80,3 +80,18 @@ export function pickRating(imdbRating: number | null | undefined, sourceRating: 
   if (sourceRating != null) return { value: sourceRating, source: "TMDB" } satisfies DisplayRating;
   return null;
 }
+
+/**
+ * Total watch time (PROJE_PLANI.md §4.7): "3 ay 2 gün 4 saat" with 1 ay = 30 gün, 1 gün = 24 saat.
+ * Zero units are left out; under an hour it is shown in minutes, nothing at all as "0 saat".
+ */
+export function formatWatchTime(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  if (minutes === 0) return "0 saat";
+  if (minutes < 60) return `${minutes} dakika`;
+  const totalHours = Math.floor(minutes / 60);
+  const months = Math.floor(totalHours / (30 * 24));
+  const days = Math.floor((totalHours % (30 * 24)) / 24);
+  const hours = totalHours % 24;
+  return [months && `${months} ay`, days && `${days} gün`, hours && `${hours} saat`].filter(Boolean).join(" ");
+}

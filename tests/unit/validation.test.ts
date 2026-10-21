@@ -3,7 +3,11 @@ import { safeRedirect } from "@/lib/redirect";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 
 describe("registerSchema", () => {
-  const valid = { username: "dizi_sever", email: "Ali@Example.com ", password: "12345678" };
+  const valid = {
+    username: "dizi_sever",
+    email: "Ali@Example.com ",
+    password: "12345678",
+  };
 
   it("accepts a valid form and normalises the e-mail", () => {
     const parsed = registerSchema.parse(valid);
@@ -17,21 +21,35 @@ describe("registerSchema", () => {
     ["spaces", "dizi sever"],
     ["Turkish letters", "dizişever"],
   ])("rejects a username that is %s", (_, username) => {
-    expect(registerSchema.safeParse({ ...valid, username }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...valid, username }).success).toBe(
+      false,
+    );
   });
 
   it("rejects bad e-mails and short or overlong passwords", () => {
-    expect(registerSchema.safeParse({ ...valid, email: "gecersiz" }).success).toBe(false);
-    expect(registerSchema.safeParse({ ...valid, password: "1234567" }).success).toBe(false);
-    expect(registerSchema.safeParse({ ...valid, password: "x".repeat(73) }).success).toBe(false);
+    expect(
+      registerSchema.safeParse({ ...valid, email: "gecersiz" }).success,
+    ).toBe(false);
+    expect(
+      registerSchema.safeParse({ ...valid, password: "1234567" }).success,
+    ).toBe(false);
+    expect(
+      registerSchema.safeParse({ ...valid, password: "x".repeat(73) }).success,
+    ).toBe(false);
   });
 });
 
 describe("loginSchema", () => {
   it("requires both fields", () => {
-    expect(loginSchema.safeParse({ identifier: "ali", password: "x" }).success).toBe(true);
-    expect(loginSchema.safeParse({ identifier: "  ", password: "x" }).success).toBe(false);
-    expect(loginSchema.safeParse({ identifier: "ali", password: "" }).success).toBe(false);
+    expect(
+      loginSchema.safeParse({ identifier: "ali", password: "x" }).success,
+    ).toBe(true);
+    expect(
+      loginSchema.safeParse({ identifier: "  ", password: "x" }).success,
+    ).toBe(false);
+    expect(
+      loginSchema.safeParse({ identifier: "ali", password: "" }).success,
+    ).toBe(false);
   });
 });
 
@@ -41,10 +59,15 @@ describe("safeRedirect", () => {
     expect(safeRedirect("/search?q=a")).toBe("/search?q=a");
   });
 
-  it.each([undefined, null, "", "https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)"])(
-    "falls back to / for %s",
-    (path) => {
-      expect(safeRedirect(path)).toBe("/");
-    },
-  );
+  it.each([
+    undefined,
+    null,
+    "",
+    "https://evil.example",
+    "//evil.example",
+    "/\\evil.example",
+    "javascript:alert(1)",
+  ])("falls back to / for %s", (path) => {
+    expect(safeRedirect(path)).toBe("/");
+  });
 });

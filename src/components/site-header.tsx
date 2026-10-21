@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut, Search, Tv } from "lucide-react";
+import { ListVideo, LogOut, Search, Tv, UserRound } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/app/(auth)/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,6 +49,19 @@ export async function SiteHeader() {
                   <span className="block font-semibold">@{user.username}</span>
                   <span className="text-muted-foreground block truncate text-xs font-normal">{user.email}</span>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href={`/profile/${user.username}`}>
+                    <UserRound />
+                    Profilim
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/watchlist">
+                    <ListVideo />
+                    İzleme listem
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <form action={logoutAction}>
                   <DropdownMenuItem asChild>

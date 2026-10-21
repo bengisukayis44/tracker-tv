@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, login, test } from "./fixtures";
+import { expect, login, resetAccount, test } from "./fixtures";
 import { INCEPTION, logout, SHERLOCK } from "./helpers";
 
 const seriesUrl = (season?: number) => `/series/${SHERLOCK.id}${season ? `/season/${season}` : ""}`;
@@ -15,6 +15,8 @@ const toggle = (
 
 test.describe("İzleme takibi", () => {
   test("giriş yapmamış ziyaretçi giriş sayfasına yönlendirilir ve geri döner", async ({ page, account }) => {
+    // Logs in as the worker's account without the signedInPage fixture, so it clears that account itself
+    await resetAccount(account);
     await page.goto(seriesUrl());
     await expect(progress(page)).toHaveCount(0);
     await page.getByRole("button", { name: "Favorilere ekle" }).click();

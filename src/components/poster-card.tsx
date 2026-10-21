@@ -10,6 +10,7 @@ export function PosterCard({
   subtitle,
   rating,
   badge,
+  children,
 }: {
   href: string;
   title: string;
@@ -17,6 +18,8 @@ export function PosterCard({
   subtitle?: string | null;
   rating?: DisplayRating | null;
   badge?: string | null;
+  /** Extra lines under the subtitle (e.g. a progress bar) */
+  children?: React.ReactNode;
 }) {
   return (
     <Link
@@ -57,6 +60,7 @@ export function PosterCard({
           {title}
         </h3>
         {subtitle && <p className="text-muted-foreground line-clamp-1 text-xs">{subtitle}</p>}
+        {children}
       </div>
     </Link>
   );

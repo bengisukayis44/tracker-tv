@@ -1,7 +1,7 @@
 # Tracker.tv — Dizi & Film Takip
 
 İzlediğin dizi ve filmleri takip ettiğin, bölümleri puanlayıp yorumladığın web uygulaması.
-Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**, **Faz 4 (yorumlar)**.
+Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**, **Faz 4 (yorumlar)**, **Faz 5 (profil ve listeler)**.
 
 ## İzleme takibi (Faz 3)
 
@@ -14,6 +14,19 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - İzledim penceresinde **favori karakter** de seçilebilir (dizinin/filmin oyuncu kadrosundan, tek seçim;
   seçiliye tekrar basınca kaldırılır). Sunucu yalnızca o kadrodaki birini kabul eder.
 - Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
+
+## Profil ve listeler (Faz 5)
+
+- **Profil** (`/profile/[kullanıcı adı]`, hesap menüsünde "Profilim"): dizi ve film için ayrı toplam izleme süresi
+  ("3 ay 2 gün 4 saat"; 1 ay = 30 gün, sıfır birimler yazılmaz), izlenen bölüm ve film sayısı. Süresi bilinmeyen
+  bölüm dizinin ortalama bölüm süresiyle sayılır.
+- Sekmeler: İzlediğim Diziler (ilerlemeyle), İzlediğim Filmler, Favorilerim (Favori Diziler / Favori Filmler ayrı),
+  Yorumlarım ("Sherlock — S1 B3: Büyük Oyun" bağlantısıyla), Daha Sonra İzle. Sekmeler tarayıcıda değişir,
+  adres `?sekme=` ile güncellenir. Profil herkese açık (kişisel notlar hariç); başkasının profilinde spoiler'lar gizli.
+- **İzleme listem** (`/watchlist`): İzlemeye devam et (son izlenen bölüm, sıradaki bölüm ve tek tıkla işaretleme;
+  en son izlenen üstte) ve Daha sonra izle (Kaldır düğmesiyle). Ana sayfada ikisinin ilk 6'sı görünür.
+- Sıradaki bölüm: izlenen en ileri bölümden sonraki ilk yayınlanmış bölüm (`nextEpisode`, `src/lib/watch.ts`).
+- Yorumlardaki kullanıcı adları profile bağlanır.
 
 ## Oyuncular
 
@@ -30,7 +43,6 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Başkalarının yorumları beğenilir (kendi yorumun beğenilemez). Sıralama: **En yeni** / **En beğenilen**
   (tarayıcıda yapılır, sayfa yenilenmez).
 - Yetki kuralları sunucuda (`src/app/actions/comments.ts`) kontrol edilir ve birim testleriyle doğrulanır.
-- Kullanıcı adı henüz profil sayfasına bağlı değil; profil sayfası Faz 5'te eklenecek.
 
 ## Filmler
 
@@ -55,6 +67,8 @@ Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 | `/series/[id]/season/[s]` | Aynı sayfa, seçili sezonla (eski `?sezon=N` adresleri buraya yönlenir) |
 | `/series/[id]/season/[s]/episode/[e]` | Bölüm sayfası, önceki/sonraki bölüm |
 | `/movie/[id]` | Film detay ve İzledim (`id` = TMDB film kimliği) |
+| `/profile/[username]` | Profil: izleme süreleri ve sekmeler |
+| `/watchlist` | İzleme listem (giriş gerekir) |
 | `/login`, `/register` | Giriş (e-posta veya kullanıcı adı) / kayıt |
 
 ## Teknolojiler

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ export function CommentItem({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
   const router = useRouter();
+  const profileHref = `/profile/${comment.author.username}`;
 
   const remove = () =>
     startDelete(async () => {
@@ -49,14 +51,18 @@ export function CommentItem({
 
   return (
     <article aria-label={`@${comment.author.username} yorumu`} className="flex gap-3 py-4">
-      <Avatar>
-        {comment.author.avatarUrl && <AvatarImage src={comment.author.avatarUrl} alt="" />}
-        <AvatarFallback>{comment.author.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
+      <Link href={profileHref} aria-hidden tabIndex={-1} className="shrink-0">
+        <Avatar>
+          {comment.author.avatarUrl && <AvatarImage src={comment.author.avatarUrl} alt="" />}
+          <AvatarFallback>{comment.author.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+      </Link>
 
       <div className="min-w-0 flex-1 space-y-2">
         <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-          <span className="font-bold">@{comment.author.username}</span>
+          <Link href={profileHref} className="hover:text-primary font-bold">
+            @{comment.author.username}
+          </Link>
           {comment.mine && <span className="text-primary text-xs font-semibold">Sen</span>}
           <time dateTime={comment.createdAt} className="text-muted-foreground text-xs">
             {comment.createdLabel}
