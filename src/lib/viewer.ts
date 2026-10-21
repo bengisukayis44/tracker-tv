@@ -26,3 +26,10 @@ export function getEpisodeWatch(userId: string, episodeId: string) {
     select: { rating: true, emotions: true, note: true, watchedAt: true },
   });
 }
+
+export function getMovieWatch(userId: string, titleId: string) {
+  return prisma.watchedMovie.findUnique({
+    where: { userId_titleId: { userId, titleId } },
+    select: { rating: true, emotions: true, note: true, watchedAt: true },
+  });
+}

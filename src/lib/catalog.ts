@@ -8,6 +8,8 @@ import {
   TmdbError,
   tmdbImage,
   tmdbRating,
+  type TmdbMovieDetails,
+  type TmdbMovieSearchItem,
   type TmdbTvSearchItem,
   type TmdbTvWithSeasons,
 } from "@/lib/tmdb";
@@ -22,15 +24,18 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Airing shows get new episodes weekly, so they refresh more often than finished ones
 const REFRESH_INTERVAL_RUNNING_MS = 1 * DAY_MS;
 const REFRESH_INTERVAL_DEFAULT_MS = 7 * DAY_MS;
-const FINISHED_STATUSES = new Set(["Ended", "Canceled"]);
+// Finished series and released movies change rarely
+const FINISHED_STATUSES = new Set(["Ended", "Canceled", "Released"]);
 const EPISODE_BATCH_SIZE = 500;
 // OMDb free keys allow 1,000 requests/day; IMDb ratings change slowly
 const IMDB_REFRESH_INTERVAL_MS = 7 * DAY_MS;
 const OMDB_CONCURRENCY = 4;
 
+export type TitleKind = "SERIES" | "MOVIE";
+
 export type SearchResult = {
   tmdbId: number;
-  type: "SERIES";
+  type: TitleKind;
   name: string;
   posterUrl: string | null;
   year: number | null;
@@ -40,6 +45,30 @@ export type SearchResult = {
   genres: string[];
   overview: string | null;
 };
+
+/** Page of a title: /series/[tmdbId] or /movie/[tmdbId] */
+export function titleHref(type: TitleKind, tmdbId: number) {
+  return type === "MOVIE" ? `/movie/${tmdbId}` : `/series/${tmdbId}`;
+}
+
+function genreNames(ids: number[], genres: Map<number, string>) {
+  return ids.map((id) => genres.get(id)).filter((g): g is string => Boolean(g));
+}
+
+function movieSearchResult(item: TmdbMovieSearchItem, genres: Map<number, string>): SearchResult {
+  return {
+    tmdbId: item.id,
+    type: "MOVIE",
+    name: cleanText(item.title) ?? item.title,
+    posterUrl: tmdbImage(item.poster_path, "w342"),
+    year: item.release_date ? Number(item.release_date.slice(0, 4)) : null,
+    status: null,
+    sourceRating: tmdbRating(item.vote_average, item.vote_count),
+    imdbRating: null,
+    genres: genreNames(item.genre_ids, genres),
+    overview: cleanText(item.overview),
+  };
+}
 
 function toSearchResult(item: TmdbTvSearchItem, genres: Map<number, string>): SearchResult {
   return {
@@ -51,7 +80,7 @@ function toSearchResult(item: TmdbTvSearchItem, genres: Map<number, string>): Se
     status: null, // not part of TMDB search results
     sourceRating: tmdbRating(item.vote_average, item.vote_count),
     imdbRating: null,
-    genres: item.genre_ids.map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
+    genres: genreNames(item.genre_ids, genres),
     overview: cleanText(item.overview),
   };
 }
@@ -69,35 +98,64 @@ export function normalizeQuery(query: string): string {
   return query.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
 }
 
+/** "all": series and movies together, in TMDB's relevance order */
+export type SearchKind = "all" | "series" | "movie";
+
 export type SearchOutcome = {
   results: SearchResult[];
   /** True when the data source did not answer in time and the results come from what is already stored */
   partial: boolean;
 };
 
-async function fetchAndStoreSearch(query: string, timeoutMs: number, retries: number): Promise<SearchResult[]> {
-  const [items, genres] = await Promise.all([
-    tmdb.searchTv(query, { timeoutMs, retries }),
-    // Genre names are a nice-to-have: search still works without them
-    tmdb.tvGenres({ timeoutMs, retries }).catch(() => new Map<number, string>()),
-  ]);
-  const results = items.map((item) => toSearchResult(item, genres));
-  const key = normalizeQuery(query);
+function searchCacheKey(query: string, kind: SearchKind) {
+  return `${kind}:${normalizeQuery(query)}`;
+}
+
+async function fetchSearch(query: string, kind: SearchKind, timeoutMs: number, retries: number) {
+  const options = { timeoutMs, retries };
+  // Genre names are a nice-to-have: search still works without them
+  const noGenres = () => new Map<number, string>();
+  const tvGenres = () => tmdb.tvGenres(options).catch(noGenres);
+  const movieGenres = () => tmdb.movieGenres(options).catch(noGenres);
+
+  if (kind === "series") {
+    const [items, genres] = await Promise.all([tmdb.searchTv(query, options), tvGenres()]);
+    return items.map((item) => toSearchResult(item, genres));
+  }
+  if (kind === "movie") {
+    const [items, genres] = await Promise.all([tmdb.searchMovies(query, options), movieGenres()]);
+    return items.map((item) => movieSearchResult(item, genres));
+  }
+  const [items, tvG, movieG] = await Promise.all([tmdb.searchMulti(query, options), tvGenres(), movieGenres()]);
+  return items.map((item) =>
+    item.media_type === "movie" ? movieSearchResult(item, movieG) : toSearchResult(item, tvG),
+  );
+}
+
+async function fetchAndStoreSearch(
+  query: string,
+  kind: SearchKind,
+  timeoutMs: number,
+  retries: number,
+): Promise<SearchResult[]> {
+  const results = await fetchSearch(query, kind, timeoutMs, retries);
+  const key = searchCacheKey(query, kind);
   const data = { results: results as unknown as object[], fetchedAt: new Date() };
   await prisma.searchCache.upsert({ where: { query: key }, create: { query: key, ...data }, update: data });
   return results;
 }
 
-/** Series already in our database whose name contains the query (fallback while the source is slow). */
-async function searchStoredTitles(query: string): Promise<SearchResult[]> {
+/** Titles already in our database whose name contains the query (fallback while the source is slow). */
+async function searchStoredTitles(query: string, kind: SearchKind): Promise<SearchResult[]> {
+  const types: TitleKind[] = kind === "series" ? ["SERIES"] : kind === "movie" ? ["MOVIE"] : ["SERIES", "MOVIE"];
   const titles = await prisma.title.findMany({
-    where: { type: "SERIES", tmdbId: { not: null }, name: { contains: query.trim(), mode: "insensitive" } },
+    where: { type: { in: types }, tmdbId: { not: null }, name: { contains: query.trim(), mode: "insensitive" } },
     orderBy: [{ sourceRating: { sort: "desc", nulls: "last" } }, { name: "asc" }],
     take: LOCAL_SEARCH_LIMIT,
   });
   return titles.map((t) => ({
     tmdbId: t.tmdbId!,
-    type: "SERIES",
+    type: t.type,
     name: t.name,
     posterUrl: t.posterUrl,
     year: t.releaseDate?.getFullYear() ?? null,
@@ -112,20 +170,21 @@ async function searchStoredTitles(query: string): Promise<SearchResult[]> {
 async function withImdbRatings(results: SearchResult[]): Promise<SearchResult[]> {
   if (results.length === 0) return results;
   const cached = await prisma.title.findMany({
-    where: { type: "SERIES", tmdbId: { in: results.map((r) => r.tmdbId) }, imdbRating: { not: null } },
-    select: { tmdbId: true, imdbRating: true },
+    where: { tmdbId: { in: results.map((r) => r.tmdbId) }, imdbRating: { not: null } },
+    select: { type: true, tmdbId: true, imdbRating: true },
   });
-  const imdbByTmdbId = new Map(cached.map((t) => [t.tmdbId, t.imdbRating]));
-  return results.map((r) => ({ ...r, imdbRating: imdbByTmdbId.get(r.tmdbId) ?? r.imdbRating ?? null }));
+  // Series and movies have separate TMDB id spaces
+  const imdbByKey = new Map(cached.map((t) => [`${t.type}:${t.tmdbId}`, t.imdbRating]));
+  return results.map((r) => ({ ...r, imdbRating: imdbByKey.get(`${r.type}:${r.tmdbId}`) ?? r.imdbRating ?? null }));
 }
 
 /**
- * Searches series: a fresh stored result is returned at once; otherwise TMDB is asked with a short timeout.
+ * Searches series and/or movies: a fresh stored result is returned at once; otherwise TMDB is asked with a short timeout.
  * If TMDB is slow or down, stored results (an older cached search, or matching stored series) are returned
  * with `partial: true` — the caller should then run `refreshSearchCache` in the background.
  */
-export async function searchTitles(query: string): Promise<SearchOutcome> {
-  const key = normalizeQuery(query);
+export async function searchTitles(query: string, kind: SearchKind = "all"): Promise<SearchOutcome> {
+  const key = searchCacheKey(query, kind);
   const cached = await prisma.searchCache.findUnique({ where: { query: key } });
   if (cached && Date.now() - cached.fetchedAt.getTime() < SEARCH_CACHE_TTL_MS) {
     return { results: await withImdbRatings(cached.results as unknown as SearchResult[]), partial: false };
@@ -133,22 +192,22 @@ export async function searchTitles(query: string): Promise<SearchOutcome> {
 
   try {
     return {
-      results: await withImdbRatings(await fetchAndStoreSearch(query, LIVE_SEARCH_TIMEOUT_MS, 0)),
+      results: await withImdbRatings(await fetchAndStoreSearch(query, kind, LIVE_SEARCH_TIMEOUT_MS, 0)),
       partial: false,
     };
   } catch (error) {
     console.warn(`TMDB araması yetişmedi ("${key}"), kayıtlı sonuçlar gösteriliyor:`, error);
-    const fallback = cached ? (cached.results as unknown as SearchResult[]) : await searchStoredTitles(query);
+    const fallback = cached ? (cached.results as unknown as SearchResult[]) : await searchStoredTitles(query, kind);
     return { results: await withImdbRatings(fallback), partial: true };
   }
 }
 
 /** Completes a search that timed out, so the next visit gets full results. Never throws. */
-export async function refreshSearchCache(query: string): Promise<void> {
+export async function refreshSearchCache(query: string, kind: SearchKind = "all"): Promise<void> {
   try {
-    await fetchAndStoreSearch(query, BACKGROUND_SEARCH_TIMEOUT_MS, 1);
+    await fetchAndStoreSearch(query, kind, BACKGROUND_SEARCH_TIMEOUT_MS, 1);
   } catch (error) {
-    console.error(`Arka planda arama tamamlanamadı ("${normalizeQuery(query)}"):`, error);
+    console.error(`Arka planda arama tamamlanamadı ("${searchCacheKey(query, kind)}"):`, error);
   }
 }
 
@@ -329,6 +388,66 @@ export async function refreshSeries(tmdbId: number): Promise<void> {
     console.error(`Dizi arka planda güncellenemedi (tmdbId=${tmdbId}):`, error);
   } finally {
     seriesRefreshInFlight.delete(tmdbId);
+  }
+}
+
+// ---------- Movies ----------
+
+async function saveMovie(movie: TmdbMovieDetails) {
+  const data = {
+    tmdbId: movie.id,
+    imdbId: movie.imdb_id || null,
+    name: cleanText(movie.title) ?? movie.title,
+    overview: cleanText(movie.overview),
+    posterUrl: tmdbImage(movie.poster_path, "w500"),
+    backdropUrl: tmdbImage(movie.backdrop_path, "w1280"),
+    sourceRating: tmdbRating(movie.vote_average, movie.vote_count),
+    runtime: movie.runtime || null,
+    releaseDate: movie.release_date ? new Date(movie.release_date) : null,
+    status: movie.status || null,
+    genres: movie.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
+    lastSyncedAt: new Date(),
+  };
+  const existing = await prisma.title.findFirst({ where: { tmdbId: movie.id, type: "MOVIE" }, select: { id: true } });
+  if (existing) await prisma.title.update({ where: { id: existing.id }, data });
+  else await prisma.title.create({ data: { type: "MOVIE", ...data } });
+}
+
+function findStoredMovie(tmdbId: number) {
+  return prisma.title.findFirst({ where: { tmdbId, type: "MOVIE" } });
+}
+
+export type Movie = NonNullable<Awaited<ReturnType<typeof findStoredMovie>>>;
+
+export type MovieLookup = { status: "ready"; movie: Movie; stale: boolean } | { status: "preparing" };
+
+/** Same stale-while-revalidate rules as lookupSeries. Unknown TMDB ids throw a TmdbError with status 404. */
+export async function lookupMovie(tmdbId: number): Promise<MovieLookup> {
+  const stored = await findStoredMovie(tmdbId);
+  if (stored) return { status: "ready", movie: stored, stale: isStale(stored.lastSyncedAt, stored.status) };
+
+  try {
+    await saveMovie(await tmdb.getMovie(tmdbId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));
+  } catch (error) {
+    if (error instanceof TmdbError && error.status === 404) throw error;
+    console.warn(`TMDB film isteği yetişmedi (tmdbId=${tmdbId}), arka planda devam edilecek:`, error);
+    return { status: "preparing" };
+  }
+  return { status: "ready", movie: (await findStoredMovie(tmdbId))!, stale: false };
+}
+
+const movieRefreshInFlight = new Set<number>();
+
+/** Fetches a movie from TMDB and stores it. Meant for after(); never throws. */
+export async function refreshMovie(tmdbId: number): Promise<void> {
+  if (movieRefreshInFlight.has(tmdbId)) return;
+  movieRefreshInFlight.add(tmdbId);
+  try {
+    await saveMovie(await tmdb.getMovie(tmdbId, { timeoutMs: BACKGROUND_LOAD_TIMEOUT_MS, retries: 1 }));
+  } catch (error) {
+    console.error(`Film arka planda güncellenemedi (tmdbId=${tmdbId}):`, error);
+  } finally {
+    movieRefreshInFlight.delete(tmdbId);
   }
 }
 

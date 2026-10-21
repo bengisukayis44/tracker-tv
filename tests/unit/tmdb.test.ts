@@ -137,6 +137,38 @@ describe("tmdb client", () => {
     expect(show.overview).toBe("English overview");
   });
 
+  it("leaves people out of mixed search results", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json({
+          results: [
+            { media_type: "person", id: 1 },
+            { media_type: "movie", id: 2 },
+            { media_type: "tv", id: 3 },
+          ],
+        }),
+      ),
+    );
+    expect((await tmdb.searchMulti("x")).map((r) => r.media_type)).toEqual(["movie", "tv"]);
+  });
+
+  it("falls back to the English overview for untranslated movies", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json({
+          id: 1,
+          title: "Film",
+          overview: "",
+          genres: [],
+          translations: { translations: [{ iso_639_1: "en", data: { overview: "English" } }] },
+        }),
+      ),
+    );
+    expect((await tmdb.getMovie(1)).overview).toBe("English");
+  });
+
   it("reports 404s and retries server errors", async () => {
     vi.stubGlobal(
       "fetch",

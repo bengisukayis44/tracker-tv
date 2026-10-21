@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "../../data";
-import { SeriesPreparing } from "../../series-preparing";
+import { TitlePreparing } from "@/components/title-preparing";
 import { SeriesView, visibleSeasons } from "../../series-view";
 
 /*
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SeasonPage({ params }: Props) {
   const { id, s } = await params;
   const [season, user] = await Promise.all([loadSeason(id, s), getCurrentUser()]);
-  if (!season) return <SeriesPreparing />;
+  if (!season) return <TitlePreparing />;
   const { series, seasonNumber } = season;
   const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
   return <SeriesView id={id} series={series} seasonNumber={seasonNumber} viewer={viewer} />;

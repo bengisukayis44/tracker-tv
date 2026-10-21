@@ -26,6 +26,10 @@ const STATUS_LABELS: Record<string, string> = {
   "In Production": "Yapım aşamasında",
   Planned: "Planlanıyor",
   Pilot: "Pilot",
+  // TMDB movie statuses
+  Released: "Vizyonda",
+  "Post Production": "Post prodüksiyon",
+  Rumored: "Söylenti",
 };
 
 export function statusLabel(status: string | null | undefined): string | null {

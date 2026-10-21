@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, login, test } from "./fixtures";
-import { logout, SHERLOCK } from "./helpers";
+import { INCEPTION, logout, SHERLOCK } from "./helpers";
 
 const seriesUrl = (season?: number) => `/series/${SHERLOCK.id}${season ? `/season/${season}` : ""}`;
 const episodeUrl = (season: number, episode: number) => `${seriesUrl(season)}/episode/${episode}`;
@@ -188,5 +188,45 @@ test.describe("İzleme takibi", () => {
     await other.goto(seriesUrl());
     await expect(progress(other)).toContainText("0/12 bölüm izlendi");
     await other.close();
+  });
+
+  test("film: İzledim ile puan, duygu ve not kaydedilir, düzenlenir ve geri alınır", async ({ signedInPage: page }) => {
+    await page.goto(`/movie/${INCEPTION.id}`);
+    await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
+
+    await page.getByRole("button", { name: "İzledim" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("radio", { name: "9 puan" }).click();
+    await dialog.getByRole("button", { name: "Heyecanlı" }).click();
+    await dialog.getByLabel("Kişisel not").fill("Rüya içinde rüya.");
+    await dialog.getByRole("button", { name: "Kaydet" }).click();
+
+    await expect(page.getByText("İzledin olarak kaydedildi.")).toBeVisible();
+    const panel = page.getByRole("region", { name: "İzledin" });
+    await expect(panel.getByText("9/10")).toBeVisible();
+    await expect(panel.getByRole("list", { name: "Seçtiğin duygular" })).toHaveText("🤩Heyecanlı");
+    await expect(panel.getByText("Rüya içinde rüya.")).toBeVisible();
+
+    await page.reload();
+    await page.getByRole("button", { name: "Düzenle" }).click();
+    await expect(dialog.getByRole("radio", { name: "9 puan" })).toHaveAttribute("aria-checked", "true");
+    await dialog.getByRole("radio", { name: "7 puan" }).click();
+    await dialog.getByRole("button", { name: "Kaydet" }).click();
+    await expect(panel.getByText("7/10")).toBeVisible();
+
+    // Favorites work on movies too
+    await page.getByRole("button", { name: "Favorilere ekle" }).click();
+    await expect(page.getByText("Favorilere eklendi.")).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Favorilerde" })).toBeVisible();
+
+    await page.getByRole("button", { name: "İzlenmedi olarak işaretle" }).click();
+    await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
+  });
+
+  test("film: giriş yapmamış ziyaretçi İzledim'e basınca giriş sayfasına gider", async ({ page }) => {
+    await page.goto(`/movie/${INCEPTION.id}`);
+    await page.getByRole("button", { name: "İzledim" }).click();
+    await expect(page).toHaveURL(`/login?callbackUrl=${encodeURIComponent(`/movie/${INCEPTION.id}`)}`);
   });
 });

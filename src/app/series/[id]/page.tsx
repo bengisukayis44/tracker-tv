@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getTitleViewerState } from "@/lib/viewer";
 import { loadSeries } from "./data";
-import { SeriesPreparing } from "./series-preparing";
+import { TitlePreparing } from "@/components/title-preparing";
 import { SeriesView } from "./series-view";
 
 /*
@@ -29,7 +29,7 @@ export default async function SeriesPage({ params, searchParams }: Props) {
   if (sezon && /^\d+$/.test(sezon)) redirect(`/series/${id}/season/${sezon}`);
 
   const [series, user] = await Promise.all([loadSeries(id), getCurrentUser()]);
-  if (!series) return <SeriesPreparing />;
+  if (!series) return <TitlePreparing />;
   const viewer = user ? await getTitleViewerState(user.id, series.id) : null;
   return <SeriesView id={id} series={series} viewer={viewer} />;
 }

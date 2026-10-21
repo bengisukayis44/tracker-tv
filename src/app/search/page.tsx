@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { after } from "next/server";
-import { AlertCircle, Clapperboard, Clock, Search } from "lucide-react";
+import { AlertCircle, Clock, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { refreshSearchCache, searchTitles, type SearchResult } from "@/lib/catalog";
+import { refreshSearchCache, searchTitles, titleHref, type SearchKind, type SearchResult } from "@/lib/catalog";
 import { genreLabel, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -32,15 +32,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const q = params.q?.trim() ?? "";
   const filter: Filter = FILTERS.some((f) => f.value === params.tur) ? (params.tur as Filter) : "hepsi";
 
-  // Movies are not wired up yet, so the movie filter returns nothing for now
+  const kind: SearchKind = filter === "dizi" ? "series" : filter === "film" ? "movie" : "all";
   let results: SearchResult[] = [];
   let partial = false;
   let error = false;
-  if (q && filter !== "film") {
+  if (q) {
     try {
-      ({ results, partial } = await searchTitles(q));
+      ({ results, partial } = await searchTitles(q, kind));
       // The data source was too slow: finish the search after the response so the next try has full results
-      if (partial) after(() => refreshSearchCache(q));
+      if (partial) after(() => refreshSearchCache(q, kind));
     } catch (err) {
       console.error("Arama başarısız:", err);
       error = true;
@@ -94,13 +94,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       </div>
 
       {!q ? (
-        <EmptyState icon={<Search />} title="Aramaya başla" text="Yukarıdaki kutuya bir dizi adı yaz." />
-      ) : filter === "film" ? (
-        <EmptyState
-          icon={<Clapperboard />}
-          title="Film araması yakında"
-          text="Film desteği yakında geliyor; şimdilik yalnızca diziler aranabiliyor."
-        />
+        <EmptyState icon={<Search />} title="Aramaya başla" text="Yukarıdaki kutuya bir dizi ya da film adı yaz." />
       ) : error ? (
         <EmptyState
           icon={<AlertCircle className="text-destructive" />}
@@ -122,7 +116,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <EmptyState
           icon={<Search />}
           title="Sonuç bulunamadı"
-          text={`"${q}" için bir dizi bulamadık. Farklı bir yazım dene.`}
+          text={`"${q}" için ${filter === "dizi" ? "bir dizi" : filter === "film" ? "bir film" : "bir dizi ya da film"} bulamadık. Farklı bir yazım dene.`}
         />
       ) : (
         <section className="space-y-4">
@@ -146,12 +140,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {results.map((r) => (
               <PosterCard
-                key={r.tmdbId}
-                href={`/series/${r.tmdbId}`}
+                key={`${r.type}:${r.tmdbId}`}
+                href={titleHref(r.type, r.tmdbId)}
                 title={r.name}
                 posterUrl={r.posterUrl}
                 rating={pickRating(r.imdbRating, r.sourceRating)}
-                badge="Dizi"
+                badge={r.type === "MOVIE" ? "Film" : "Dizi"}
                 subtitle={[r.year, statusLabel(r.status), r.genres[0] && genreLabel(r.genres[0])]
                   .filter(Boolean)
                   .join(" · ")}

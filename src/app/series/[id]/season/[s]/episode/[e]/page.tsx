@@ -10,7 +10,7 @@ import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
 import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
 import { loadSeries } from "../../../../data";
-import { SeriesPreparing } from "../../../../series-preparing";
+import { TitlePreparing } from "@/components/title-preparing";
 
 type Props = { params: Promise<{ id: string; s: string; e: string }> };
 
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function EpisodePage({ params }: Props) {
   const [loaded, user] = await Promise.all([loadEpisode(params), getCurrentUser()]);
-  if (!loaded) return <SeriesPreparing />;
+  if (!loaded) return <TitlePreparing />;
   const { id, series, season, episode, previous, next } = loaded;
   const aired = isAired(episode);
   const watch = user ? await getEpisodeWatch(user.id, episode.id) : null;
@@ -80,7 +80,12 @@ export default async function EpisodePage({ params }: Props) {
         </div>
       </header>
 
-      <WatchPanel episodeId={episode.id} aired={aired} signedIn={user !== null} watch={watch} />
+      <WatchPanel
+        target={{ kind: "episode", episodeId: episode.id }}
+        aired={aired}
+        signedIn={user !== null}
+        watch={watch}
+      />
 
       <div className="bg-muted relative aspect-video overflow-hidden rounded-2xl border">
         {episode.stillUrl ? (

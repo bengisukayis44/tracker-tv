@@ -13,21 +13,29 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   Diziden bir bölüm izlenince dizi "Daha sonra izle" listesinden otomatik çıkar (favoriler kalır).
 - Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
 
+## Filmler
+
+- Arama dizi ve filmleri birlikte getirir; **Hepsi / Dizi / Film** filtreleriyle daraltılır, kartlarda tür yazar.
+- Film sayfası (`/movie/[id]`): afiş, özet, süre, türler, IMDb puanı ve bağlantısı. Dizi sayfasıyla aynı üst bölümü
+  kullanır (`src/components/title-hero.tsx`).
+- Filmler de bölümler gibi **İzledim** ile işaretlenir: puan, duygular, kişisel not (`WatchedMovie` tablosu).
+
 ## Canlı site
 
 **https://tracker-tv-seven.vercel.app** — Vercel (Hobby plan), sunucu bölgesi Frankfurt (`vercel.json`, veritabanının yanında).
 Elle yayın: `vercel deploy --prod`. Canlı siteye karşı test: `E2E_BASE_URL=https://tracker-tv-seven.vercel.app npm run test:e2e`.
-Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OMDB_API_KEY`
+Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OMDB_API_KEY`, `TMDB_API_KEY`
 (`DIRECT_URL` ve `SUPABASE_SECRET_KEY` canlıda gerekmez, eklenmemeli).
 
 ## Sayfalar
 
 | Yol | Sayfa |
 |---|---|
-| `/search?q=…&tur=hepsi\|dizi\|film` | Arama (film filtresi, film kaynağı eklenene kadar boş) |
+| `/search?q=…&tur=hepsi\|dizi\|film` | Arama (dizi ve film birlikte ya da filtreli) |
 | `/series/[id]` | Dizi detay + ilk sezonun bölümleri (`id` = TMDB dizi kimliği) |
 | `/series/[id]/season/[s]` | Aynı sayfa, seçili sezonla (eski `?sezon=N` adresleri buraya yönlenir) |
 | `/series/[id]/season/[s]/episode/[e]` | Bölüm sayfası, önceki/sonraki bölüm |
+| `/movie/[id]` | Film detay ve İzledim (`id` = TMDB film kimliği) |
 | `/login`, `/register` | Giriş (e-posta veya kullanıcı adı) / kayıt |
 
 ## Teknolojiler
@@ -99,6 +107,7 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 - Bir dizi ilk açıldığında TMDB'den çekilip `Title` / `Season` / `Episode` tablolarına toplu SQL ile yazılır
   (sezonlar 20'şerli tek istekle). Kayıtlı dizi her zaman anında gösterilir; devam edenler 1 günde, bitmiş/iptal
   edilenler 7 günde bir arka planda yenilenir. Hiç açılmamış dizi 10 sn'de gelmezse "Dizi hazırlanıyor" sayfası çıkar.
+- Filmler de ilk açılışta `Title` tablosuna yazılır ve aynı kurallarla arka planda yenilenir.
 - Bölümler (sezon, bölüm no) ile eşleşir; kaynakta artık olmayan bölümler yalnızca kimse izlememişse silinir.
 - IMDb puanları sayfa gönderildikten sonra arka planda OMDb'den çekilir (dizi başına 1 + sezon sayısı istek)
   ve 7 gün saklanır. OMDb ücretsiz anahtarı günde 1.000 istek verir; limit dolarsa ertesi gün tekrar denenir.
@@ -108,8 +117,8 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 ## Plandan sapmalar
 
 - **Veri kaynağı:** İlk sürüm TVmaze kullanıyordu; 21 Ekim 2026'da TMDB'ye taşındı (`npm run migrate:tmdb`,
-  izleme geçmişi korunarak). Film sayfaları henüz yok. Sayfa altında TMDB'nin istediği logo ve atıf yer alır.
+  izleme geçmişi korunarak). Sayfa altında TMDB'nin istediği logo ve atıf yer alır.
 - **Sezon adresi:** `/series/[id]/season/[s]` (planda yoktu). Next.js 15.5'te yalnızca `?sezon=` değişen
   gezinmeler ekrana gelmiyordu. Aynı nedenle dizi/sezon sayfalarında `loading.tsx` ya da `Suspense` yok: ikisi de
-  sekme geçişlerini ve "izledim" sonrası ilerleme güncellemesini ekrana yansıtmıyordu.
-- **Filmler:** `WatchedMovie` tablosu hazır, film kaynağı eklenince kullanılacak.
+  sekme geçişlerini ve "izledim" sonrası ilerleme güncellemesini ekrana yansıtmıyordu. Arama sayfasındaki
+  `loading.tsx` de aynı nedenle kaldırıldı (masaüstünde Hepsi/Dizi/Film filtrelerine tıklamak sayfayı değiştirmiyordu).

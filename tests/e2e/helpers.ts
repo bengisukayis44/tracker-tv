@@ -3,6 +3,9 @@ import { expect, type Page } from "@playwright/test";
 /** Sherlock (TMDB 19885): 4 seasons of 3 episodes plus specials, ended — a small, stable show. */
 export const SHERLOCK = { id: 19885, name: "Sherlock" };
 
+/** Inception (TMDB 27205), shown with its Turkish title. */
+export const INCEPTION = { id: 27205, name: "Başlangıç", imdbId: "tt1375666" };
+
 /** A unique test account per call; e-mails ending in @e2e.test are deleted after the run. */
 export function newTestUser() {
   const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { expectNoHorizontalScroll, SHERLOCK } from "./helpers";
+import { expectNoHorizontalScroll, INCEPTION, SHERLOCK } from "./helpers";
 
 test.describe("Arama", () => {
   test("ana sayfadan arama yapılır ve sonuçtan diziye gidilir", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("textbox", { name: "Dizi ara" }).fill("sherlock");
-    await page.getByRole("textbox", { name: "Dizi ara" }).press("Enter");
+    await page.getByRole("textbox", { name: "Dizi ya da film ara" }).fill("sherlock");
+    await page.getByRole("textbox", { name: "Dizi ya da film ara" }).press("Enter");
 
     await expect(page).toHaveURL(/\/search\?q=sherlock/);
     await expect(page.getByText(/“sherlock” için \d+ sonuç/)).toBeVisible();
@@ -15,13 +15,33 @@ test.describe("Arama", () => {
     await expect(page.getByRole("heading", { level: 1, name: SHERLOCK.name })).toBeVisible();
   });
 
-  test("film filtresi ve sonuçsuz arama açıklayıcı mesaj gösterir", async ({ page }) => {
+  test("hepsi aramasında diziler ve filmler birlikte gelir", async ({ page }) => {
     await page.goto("/search?q=sherlock");
-    await page.getByRole("link", { name: "Film" }).click();
-    await expect(page).toHaveURL(/tur=film/);
-    await expect(page.getByText("Film araması yakında")).toBeVisible();
+    await expect(page.locator(`a[href="/series/${SHERLOCK.id}"]`).first()).toBeVisible();
+    await expect(page.locator(`a[href^="/movie/"]`).first()).toBeVisible();
+  });
 
-    // TVmaze is often slow for queries it has not cached, so either answer is correct here
+  test("film filtresi yalnızca filmleri getirir ve film sayfasına gider", async ({ page }) => {
+    await page.goto("/search?q=inception");
+    await page.getByRole("link", { name: "Film", exact: true }).click();
+    await expect(page).toHaveURL(/tur=film/);
+    await expect(page.locator(`a[href^="/series/"]`)).toHaveCount(0);
+
+    await page.locator(`a[href="/movie/${INCEPTION.id}"]`).first().click();
+    await expect(page).toHaveURL(`/movie/${INCEPTION.id}`);
+    await expect(page.getByRole("heading", { level: 1, name: INCEPTION.name })).toBeVisible();
+    await expect(page).toHaveTitle(`${INCEPTION.name} (2010) · Tracker.tv`);
+    await expect(page.getByText("2 sa 28 dk")).toBeVisible();
+    await expect(page.getByRole("link", { name: "IMDb'de görüntüle" })).toHaveAttribute(
+      "href",
+      `https://www.imdb.com/title/${INCEPTION.imdbId}/`,
+    );
+    await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test("sonuçsuz ve boş arama açıklayıcı mesaj gösterir", async ({ page }) => {
+    // A slow data source is also an acceptable answer here
     await page.goto("/search?q=xqzjvkwqpl");
     await expect(page.getByText("Sonuç bulunamadı").or(page.getByText("Veri kaynağı şu an yavaş"))).toBeVisible();
 
@@ -111,6 +131,8 @@ test.describe("Dizi ve bölüm sayfaları", () => {
     `/series/${SHERLOCK.id}/season/9/episode/1`,
     `/series/${SHERLOCK.id}/season/1/episode/99`,
     "/olmayan-sayfa",
+    "/movie/abc",
+    "/movie/999999999",
   ]) {
     test(`bulunamayan sayfa: ${path}`, async ({ page }) => {
       await page.goto(path);

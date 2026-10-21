@@ -63,6 +63,39 @@ export type TmdbTvDetails = {
   translations?: { translations: { iso_639_1: string; data: { overview?: string; name?: string } }[] };
 };
 
+export type TmdbMovieSearchItem = {
+  id: number;
+  title: string;
+  overview: string;
+  poster_path: string | null;
+  release_date: string;
+  vote_average: number;
+  vote_count: number;
+  genre_ids: number[];
+};
+
+/** /search/multi result: series and movies (people are filtered out). */
+export type TmdbMultiSearchItem =
+  | (TmdbTvSearchItem & { media_type: "tv" })
+  | (TmdbMovieSearchItem & { media_type: "movie" })
+  | { media_type: "person"; id: number };
+
+export type TmdbMovieDetails = {
+  id: number;
+  title: string;
+  overview: string;
+  status: string; // Released | Post Production | In Production | Planned | Rumored | Canceled
+  release_date: string | null;
+  runtime: number | null;
+  vote_average: number;
+  vote_count: number;
+  genres: { id: number; name: string }[];
+  poster_path: string | null;
+  backdrop_path: string | null;
+  imdb_id: string | null;
+  translations?: { translations: { iso_639_1: string; data: { overview?: string; title?: string } }[] };
+};
+
 /** A series with every season's episodes, Turkish with English fallbacks already applied. */
 export type TmdbTvWithSeasons = TmdbTvDetails & { seasonsWithEpisodes: TmdbSeason[] };
 
@@ -170,6 +203,15 @@ export function chunk<T>(items: T[], size: number): T[][] {
 // ---------- API ----------
 
 let tvGenresCache: Promise<Map<number, string>> | null = null;
+let movieGenresCache: Promise<Map<number, string>> | null = null;
+
+function loadGenres(kind: "tv" | "movie", options?: TmdbRequestOptions) {
+  return tmdbFetch<{ genres: { id: number; name: string }[] }>(
+    `/genre/${kind}/list`,
+    { language: LANGUAGE },
+    options,
+  ).then((data) => new Map(data.genres.map((g) => [g.id, g.name])));
+}
 
 export const tmdb = {
   async searchTv(query: string, options?: TmdbRequestOptions): Promise<TmdbTvSearchItem[]> {
@@ -183,19 +225,61 @@ export const tmdb = {
     return data.results;
   },
 
+  async searchMovies(query: string, options?: TmdbRequestOptions): Promise<TmdbMovieSearchItem[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const data = await tmdbFetch<{ results: TmdbMovieSearchItem[] }>(
+      "/search/movie",
+      { query: q, language: LANGUAGE, include_adult: "false", page: "1" },
+      options,
+    );
+    return data.results;
+  },
+
+  /** Series and movies in one list, in TMDB's relevance order (people are left out). */
+  async searchMulti(
+    query: string,
+    options?: TmdbRequestOptions,
+  ): Promise<Exclude<TmdbMultiSearchItem, { media_type: "person" }>[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const data = await tmdbFetch<{ results: TmdbMultiSearchItem[] }>(
+      "/search/multi",
+      { query: q, language: LANGUAGE, include_adult: "false", page: "1" },
+      options,
+    );
+    return data.results.filter(
+      (r): r is Exclude<TmdbMultiSearchItem, { media_type: "person" }> =>
+        r.media_type === "tv" || r.media_type === "movie",
+    );
+  },
+
   /** Genre id → Turkish name, fetched once per server instance. */
   tvGenres(options?: TmdbRequestOptions): Promise<Map<number, string>> {
-    tvGenresCache ??= tmdbFetch<{ genres: { id: number; name: string }[] }>(
-      "/genre/tv/list",
-      { language: LANGUAGE },
-      options,
-    )
-      .then((data) => new Map(data.genres.map((g) => [g.id, g.name])))
-      .catch((error) => {
-        tvGenresCache = null; // try again next time
-        throw error;
-      });
+    tvGenresCache ??= loadGenres("tv", options).catch((error) => {
+      tvGenresCache = null; // try again next time
+      throw error;
+    });
     return tvGenresCache;
+  },
+
+  movieGenres(options?: TmdbRequestOptions): Promise<Map<number, string>> {
+    movieGenresCache ??= loadGenres("movie", options).catch((error) => {
+      movieGenresCache = null;
+      throw error;
+    });
+    return movieGenresCache;
+  },
+
+  /** Movie details in Turkish; the overview falls back to English when there is no translation. */
+  async getMovie(id: number, options?: TmdbRequestOptions): Promise<TmdbMovieDetails> {
+    const movie = await tmdbFetch<TmdbMovieDetails>(
+      `/movie/${id}`,
+      { language: LANGUAGE, append_to_response: "translations" },
+      options,
+    );
+    const englishOverview = movie.translations?.translations.find((t) => t.iso_639_1 === "en")?.data.overview;
+    return { ...movie, overview: movie.overview?.trim() ? movie.overview : (englishOverview ?? "") };
   },
 
   /** Finds a TMDB series id by IMDb id (used to move series over from the old data source). */

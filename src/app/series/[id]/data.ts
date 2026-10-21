@@ -7,7 +7,7 @@ import { TmdbError } from "@/lib/tmdb";
 
 /**
  * Loads a series by the URL id, deduplicated per request so metadata and page share one lookup.
- * Returns null while a never-opened series is still being fetched (the page shows SeriesPreparing).
+ * Returns null while a never-opened series is still being fetched (the page shows TitlePreparing).
  * Refreshes from TMDB and IMDb ratings from OMDb run after the response, so they never slow a page down.
  */
 export const loadSeries = cache(async (idParam: string): Promise<Series | null> => {

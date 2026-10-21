@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Emotion } from "@/generated/prisma/enums";
 import { EMOTIONS, emotionMeta } from "@/lib/emotions";
-import { watchEpisodeSchema } from "@/lib/validations/watch";
+import { watchEpisodeSchema, watchMovieSchema } from "@/lib/validations/watch";
 import {
   airedEpisodeIds,
   isSeasonWatched,
@@ -101,6 +101,19 @@ describe("watchEpisodeSchema", () => {
   it("rejects unknown emotions and overlong notes", () => {
     expect(watchEpisodeSchema.safeParse({ ...base, emotions: ["UZGUN"] }).success).toBe(false);
     expect(watchEpisodeSchema.safeParse({ ...base, note: "x".repeat(1001) }).success).toBe(false);
+  });
+});
+
+describe("watchMovieSchema", () => {
+  it("uses the same rules as episodes, keyed by the movie", () => {
+    expect(watchMovieSchema.parse({ titleId: "m1", rating: 9, emotions: ["HEYECANLI"], note: " Süper " })).toEqual({
+      titleId: "m1",
+      rating: 9,
+      emotions: ["HEYECANLI"],
+      note: "Süper",
+    });
+    expect(watchMovieSchema.safeParse({ titleId: "", rating: null, emotions: [], note: null }).success).toBe(false);
+    expect(watchMovieSchema.safeParse({ titleId: "m1", rating: 11, emotions: [], note: null }).success).toBe(false);
   });
 });
 

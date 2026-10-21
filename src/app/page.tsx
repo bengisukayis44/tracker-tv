@@ -16,7 +16,12 @@ export default async function HomePage() {
         Dizi ve filmlerini takip et, bölümleri puanla, hislerini kaydet ve spoiler korumalı yorumları oku.
       </p>
       <form action="/search" role="search" className="mx-auto flex max-w-lg gap-2">
-        <Input name="q" placeholder="Bir dizi ara… (ör. Sherlock)" aria-label="Dizi ara" className="h-10" />
+        <Input
+          name="q"
+          placeholder="Bir dizi ya da film ara… (ör. Sherlock)"
+          aria-label="Dizi ya da film ara"
+          className="h-10"
+        />
         <Button type="submit" size="lg" className="h-10">
           Ara
         </Button>

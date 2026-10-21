@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { isAired } from "@/lib/episodes";
 import { prisma } from "@/lib/prisma";
-import { idSchema, watchEpisodeSchema, type WatchEpisodeInput } from "@/lib/validations/watch";
+import {
+  idSchema,
+  watchEpisodeSchema,
+  watchMovieSchema,
+  type WatchEpisodeInput,
+  type WatchMovieInput,
+} from "@/lib/validations/watch";
 import { airedEpisodeIds, previousUnwatchedEpisodeIds } from "@/lib/watch";
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string; needsLogin?: boolean };
@@ -20,9 +26,11 @@ async function findEpisode(episodeId: string) {
   });
 }
 
-function revalidateTitle(tmdbId: number | null) {
+function revalidateTitle(tmdbId: number | null, type: "SERIES" | "MOVIE" = "SERIES") {
+  if (tmdbId == null) return;
   // "layout" refreshes the series page, its season pages and every episode page under it
-  if (tmdbId != null) revalidatePath(`/series/${tmdbId}`, "layout");
+  if (type === "MOVIE") revalidatePath(`/movie/${tmdbId}`);
+  else revalidatePath(`/series/${tmdbId}`, "layout");
 }
 
 /** Watching any episode takes the title off the user's "Daha sonra izle" list (PROJE_PLANI.md §5). */
@@ -166,10 +174,10 @@ async function toggleListEntry(
 ): Promise<ActionResult<{ active: boolean }>> {
   const user = await getCurrentUser();
   if (!user) return LOGIN_REQUIRED;
-  if (!idSchema.safeParse(titleId).success) return { ok: false, error: "Dizi bulunamadı." };
+  if (!idSchema.safeParse(titleId).success) return { ok: false, error: "İçerik bulunamadı." };
 
-  const title = await prisma.title.findUnique({ where: { id: titleId }, select: { tmdbId: true } });
-  if (!title) return { ok: false, error: "Dizi bulunamadı." };
+  const title = await prisma.title.findUnique({ where: { id: titleId }, select: { tmdbId: true, type: true } });
+  if (!title) return { ok: false, error: "İçerik bulunamadı." };
 
   const where = { userId_titleId: { userId: user.id, titleId } };
   const data = { userId: user.id, titleId };
@@ -181,7 +189,7 @@ async function toggleListEntry(
     active = !(await prisma.watchlistItem.findUnique({ where }));
     await (active ? prisma.watchlistItem.create({ data }) : prisma.watchlistItem.delete({ where }));
   }
-  revalidateTitle(title.tmdbId);
+  revalidateTitle(title.tmdbId, title.type);
   return { ok: true, active };
 }
 
@@ -191,4 +199,53 @@ export async function toggleFavorite(titleId: string) {
 
 export async function toggleWatchlist(titleId: string) {
   return toggleListEntry(titleId, "watchlist");
+}
+
+// ---------- Movies ----------
+
+const MOVIE_NOT_FOUND = { ok: false, error: "Film bulunamadı." } as const;
+
+async function findMovie(titleId: string) {
+  return prisma.title.findFirst({
+    where: { id: titleId, type: "MOVIE" },
+    select: { id: true, tmdbId: true, releaseDate: true },
+  });
+}
+
+/** "İzledim" for a movie: rating, emotions and a private note. Unreleased movies cannot be marked. */
+export async function saveMovieWatch(input: WatchMovieInput): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+
+  const parsed = watchMovieSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Geçersiz bilgi." };
+  const { titleId, rating, emotions, note } = parsed.data;
+
+  const movie = await findMovie(titleId);
+  if (!movie) return MOVIE_NOT_FOUND;
+  if (!isAired({ airDate: movie.releaseDate })) return { ok: false, error: "Bu film henüz vizyona girmedi." };
+
+  const data = { rating, emotions, note };
+  await prisma.watchedMovie.upsert({
+    where: { userId_titleId: { userId: user.id, titleId } },
+    create: { userId: user.id, titleId, ...data },
+    update: data,
+  });
+  await removeFromWatchlist(user.id, titleId);
+  revalidateTitle(movie.tmdbId, "MOVIE");
+  return { ok: true };
+}
+
+/** Removes a movie watch together with its rating, emotions and note. */
+export async function unwatchMovie(titleId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  if (!idSchema.safeParse(titleId).success) return MOVIE_NOT_FOUND;
+
+  const movie = await findMovie(titleId);
+  if (!movie) return MOVIE_NOT_FOUND;
+
+  await prisma.watchedMovie.deleteMany({ where: { userId: user.id, titleId } });
+  revalidateTitle(movie.tmdbId, "MOVIE");
+  return { ok: true };
 }

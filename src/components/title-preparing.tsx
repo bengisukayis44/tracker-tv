@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 const RETRY_EVERY_MS = 5_000;
 const MAX_AUTO_RETRIES = 12;
 
-/** Shown while a series nobody has opened yet is fetched in the background; reloads itself until it is ready. */
-export function SeriesPreparing() {
+/** Shown while a series or movie nobody has opened yet is fetched in the background; reloads itself until ready. */
+export function TitlePreparing({ kind = "series" }: { kind?: "series" | "movie" }) {
   const router = useRouter();
   const [tries, setTries] = useState(0);
   const gaveUp = tries >= MAX_AUTO_RETRIES;
@@ -26,11 +26,11 @@ export function SeriesPreparing() {
   return (
     <div role="status" className="bg-card mx-auto max-w-md space-y-4 rounded-2xl border p-10 text-center">
       {!gaveUp && <Loader2 className="text-primary mx-auto size-10 animate-spin" />}
-      <h1 className="text-xl font-bold">Dizi hazırlanıyor</h1>
+      <h1 className="text-xl font-bold">{kind === "movie" ? "Film hazırlanıyor" : "Dizi hazırlanıyor"}</h1>
       <p className="text-muted-foreground text-sm">
         {gaveUp
           ? "Veri kaynağı hâlâ yanıt vermiyor. Biraz sonra tekrar dene."
-          : "Bu diziyi ilk kez açan sensin; bilgileri veri kaynağından çekiyoruz. Sayfa hazır olunca kendiliğinden açılacak."}
+          : `Bu ${kind === "movie" ? "filmi" : "diziyi"} ilk kez açan sensin; bilgileri veri kaynağından çekiyoruz. Sayfa hazır olunca kendiliğinden açılacak.`}
       </p>
       {gaveUp && <Button onClick={() => setTries(0)}>Tekrar dene</Button>}
     </div>

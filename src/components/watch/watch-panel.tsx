@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Eye, Loader2, Lock, Pencil, Star, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveEpisodeWatch, unwatchEpisode } from "@/app/actions/watch";
+import { saveEpisodeWatch, saveMovieWatch, unwatchEpisode, unwatchMovie } from "@/app/actions/watch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,17 +25,21 @@ import { useLoginRedirect } from "./use-login-redirect";
 
 export type SavedWatch = { rating: number | null; emotions: string[]; note: string | null };
 
+/** What is being marked: an episode (offers to mark earlier ones too) or a movie. */
+export type WatchTarget = { kind: "episode"; episodeId: string } | { kind: "movie"; titleId: string };
+
 /**
- * Episode page panel: "İzledim" → rating (1-10), emotions and a private note.
+ * Episode and movie page panel: "İzledim" → rating (1-10), emotions and a private note.
  * Once watched it shows the saved values with edit and undo.
  */
 export function WatchPanel({
-  episodeId,
+  target,
   aired,
   signedIn,
   watch,
 }: {
-  episodeId: string;
+  target: WatchTarget;
+  /** Episode aired / movie released */
   aired: boolean;
   signedIn: boolean;
   watch: SavedWatch | null;
@@ -49,7 +53,9 @@ export function WatchPanel({
   if (!aired) {
     return (
       <div className="bg-card text-muted-foreground rounded-2xl border p-5 text-sm">
-        Bu bölüm henüz yayınlanmadı; yayınlandıktan sonra izledim olarak işaretleyebilirsin.
+        {target.kind === "movie"
+          ? "Bu film henüz vizyona girmedi; çıktıktan sonra izledim olarak işaretleyebilirsin."
+          : "Bu bölüm henüz yayınlanmadı; yayınlandıktan sonra izledim olarak işaretleyebilirsin."}
       </div>
     );
   }
@@ -58,7 +64,8 @@ export function WatchPanel({
 
   const unwatch = () =>
     startTransition(async () => {
-      const result = await unwatchEpisode(episodeId);
+      const result =
+        target.kind === "movie" ? await unwatchMovie(target.titleId) : await unwatchEpisode(target.episodeId);
       if (result.ok) {
         router.refresh();
         toast.success("İzlenmedi olarak işaretlendi.");
@@ -128,7 +135,7 @@ export function WatchPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="watch-heading" className="text-lg font-bold">
-              Bu bölümü izledin mi?
+              {target.kind === "movie" ? "Bu filmi izledin mi?" : "Bu bölümü izledin mi?"}
             </h2>
             <p className="text-muted-foreground text-sm">Puan ver, hislerini ve kendine bir not bırak.</p>
           </div>
@@ -144,9 +151,11 @@ export function WatchPanel({
           key={open ? "open" : "closed"}
           open={open}
           onOpenChange={setOpen}
-          episodeId={episodeId}
+          target={target}
           initial={watch}
-          onSaved={(previousUnwatched) => offerPreviousEpisodes(episodeId, previousUnwatched)}
+          onSaved={(previousUnwatched) => {
+            if (target.kind === "episode") offerPreviousEpisodes(target.episodeId, previousUnwatched);
+          }}
         />
       )}
       {previousPrompt}
@@ -157,13 +166,13 @@ export function WatchPanel({
 function WatchDialog({
   open,
   onOpenChange,
-  episodeId,
+  target,
   initial,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  episodeId: string;
+  target: WatchTarget;
   initial: SavedWatch | null;
   /** Called after a first save with the number of earlier unwatched episodes */
   onSaved: (previousUnwatched: number) => void;
@@ -178,7 +187,11 @@ function WatchDialog({
   const save = () => {
     setError(undefined);
     startTransition(async () => {
-      const result = await saveEpisodeWatch({ episodeId, rating, emotions, note });
+      const fields = { rating, emotions, note };
+      const result =
+        target.kind === "movie"
+          ? await saveMovieWatch({ titleId: target.titleId, ...fields })
+          : await saveEpisodeWatch({ episodeId: target.episodeId, ...fields });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -186,7 +199,7 @@ function WatchDialog({
       onOpenChange(false);
       router.refresh();
       toast.success(initial ? "Kaydın güncellendi." : "İzledin olarak kaydedildi.");
-      if (!initial) onSaved(result.previousUnwatched);
+      if (!initial && "previousUnwatched" in result) onSaved(result.previousUnwatched as number);
     });
   };
 
