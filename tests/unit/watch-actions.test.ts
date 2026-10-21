@@ -16,12 +16,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const { saveMovieWatch } = await import("@/app/actions/watch");
 
 const cast = [
-  {
-    id: 6193,
-    name: "Leonardo DiCaprio",
-    character: "Dom Cobb",
-    profileUrl: null,
-  },
+  { id: 6193, name: "Leonardo DiCaprio", character: "Dom Cobb", profileUrl: null },
   { id: 9, name: "İsimsiz Rol", character: null, profileUrl: null },
 ];
 const entry = { titleId: "m1", rating: null, emotions: [], note: null };
@@ -29,50 +24,27 @@ const entry = { titleId: "m1", rating: null, emotions: [], note: null };
 describe("saveMovieWatch: favorite character", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    auth.getCurrentUser.mockResolvedValue({
-      id: "me",
-      username: "ben",
-      email: "b@example.com",
-      avatarUrl: null,
-    });
-    db.title.findFirst.mockResolvedValue({
-      id: "m1",
-      tmdbId: 27205,
-      releaseDate: new Date("2010-07-16"),
-      castMembers: cast,
-    });
+    auth.getCurrentUser.mockResolvedValue({ id: "me", username: "ben", email: "b@example.com", avatarUrl: null });
+    db.title.findFirst.mockResolvedValue({ id: "m1", tmdbId: 27205, releaseDate: new Date("2010-07-16"), castMembers: cast });
   });
 
   const saved = () => db.watchedMovie.upsert.mock.calls[0][0].create;
 
   it("stores the character name from the movie's own cast", async () => {
-    expect(await saveMovieWatch({ ...entry, favoriteCastId: 6193 })).toEqual({
-      ok: true,
-    });
-    expect(saved()).toMatchObject({
-      favoriteCastId: 6193,
-      favoriteCharacter: "Dom Cobb",
-    });
+    expect(await saveMovieWatch({ ...entry, favoriteCastId: 6193 })).toEqual({ ok: true });
+    expect(saved()).toMatchObject({ favoriteCastId: 6193, favoriteCharacter: "Dom Cobb" });
   });
 
   it("uses the actor's name when the character is unknown, and clears with null", async () => {
     await saveMovieWatch({ ...entry, favoriteCastId: 9 });
-    expect(saved()).toMatchObject({
-      favoriteCastId: 9,
-      favoriteCharacter: "İsimsiz Rol",
-    });
+    expect(saved()).toMatchObject({ favoriteCastId: 9, favoriteCharacter: "İsimsiz Rol" });
     vi.clearAllMocks();
     await saveMovieWatch({ ...entry, favoriteCastId: null });
-    expect(saved()).toMatchObject({
-      favoriteCastId: null,
-      favoriteCharacter: null,
-    });
+    expect(saved()).toMatchObject({ favoriteCastId: null, favoriteCharacter: null });
   });
 
   it("refuses someone who is not in the cast", async () => {
-    expect(
-      await saveMovieWatch({ ...entry, favoriteCastId: 12345 }),
-    ).toMatchObject({ ok: false });
+    expect(await saveMovieWatch({ ...entry, favoriteCastId: 12345 })).toMatchObject({ ok: false });
     expect(db.watchedMovie.upsert).not.toHaveBeenCalled();
   });
 });

@@ -11,15 +11,8 @@ import {
   type TmdbEpisode,
 } from "@/lib/tmdb";
 
-const json = (
-  body: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
 const episode = (n: number, name: string, overview = ""): TmdbEpisode => ({
   id: 1000 + n,
@@ -40,59 +33,36 @@ beforeEach(() => {
 
 describe("helpers", () => {
   it("recognises placeholder episode names in Turkish and English", () => {
-    for (const name of [
-      "3. Bölüm",
-      "3.Bölüm",
-      "Bölüm 3",
-      "Episode 12",
-      "",
-      null,
-    ]) {
+    for (const name of ["3. Bölüm", "3.Bölüm", "Bölüm 3", "Episode 12", "", null]) {
       expect(isPlaceholderEpisodeName(name)).toBe(true);
     }
-    for (const name of [
-      "Pembe Üzerine Bir Çalışma",
-      "Episode 12: The Return",
-      "Pilot",
-    ]) {
+    for (const name of ["Pembe Üzerine Bir Çalışma", "Episode 12: The Return", "Pilot"]) {
       expect(isPlaceholderEpisodeName(name)).toBe(false);
     }
   });
 
   it("keeps Turkish text and only falls back to English where Turkish is missing", () => {
     expect(
-      mergeEpisodeTranslation(
-        episode(1, "Kör Bankacı", "Türkçe özet"),
-        episode(1, "The Blind Banker", "EN"),
-      ),
+      mergeEpisodeTranslation(episode(1, "Kör Bankacı", "Türkçe özet"), episode(1, "The Blind Banker", "EN")),
     ).toMatchObject({
       name: "Kör Bankacı",
       overview: "Türkçe özet",
     });
     expect(
-      mergeEpisodeTranslation(
-        episode(2, "2. Bölüm"),
-        episode(2, "Many Happy Returns", "EN overview"),
-      ),
+      mergeEpisodeTranslation(episode(2, "2. Bölüm"), episode(2, "Many Happy Returns", "EN overview")),
     ).toMatchObject({
       name: "Many Happy Returns",
       overview: "EN overview",
     });
     // English is a placeholder too: keep the Turkish one
-    expect(
-      mergeEpisodeTranslation(episode(3, "3. Bölüm"), episode(3, "Episode 3")),
-    ).toMatchObject({
+    expect(mergeEpisodeTranslation(episode(3, "3. Bölüm"), episode(3, "Episode 3"))).toMatchObject({
       name: "3. Bölüm",
     });
-    expect(
-      mergeEpisodeTranslation(episode(4, "4. Bölüm"), undefined).name,
-    ).toBe("4. Bölüm");
+    expect(mergeEpisodeTranslation(episode(4, "4. Bölüm"), undefined).name).toBe("4. Bölüm");
   });
 
   it("builds image URLs and ratings", () => {
-    expect(tmdbImage("/abc.jpg", "w500")).toBe(
-      "https://image.tmdb.org/t/p/w500/abc.jpg",
-    );
+    expect(tmdbImage("/abc.jpg", "w500")).toBe("https://image.tmdb.org/t/p/w500/abc.jpg");
     expect(tmdbImage(null, "w500")).toBeNull();
     expect(tmdbRating(8.504, 1200)).toBe(8.5);
     expect(tmdbRating(0, 0)).toBeNull();
@@ -114,24 +84,15 @@ describe("helpers", () => {
 
 describe("tmdb client", () => {
   it("sends the bearer token and Turkish language", async () => {
-    const fetchMock = vi.fn(async () =>
-      json({ results: [{ id: 19885, name: "Sherlock" }] }),
-    );
+    const fetchMock = vi.fn(async () => json({ results: [{ id: 19885, name: "Sherlock" }] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    expect(await tmdb.searchTv("sherlock")).toEqual([
-      { id: 19885, name: "Sherlock" },
-    ]);
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [
-      URL,
-      RequestInit,
-    ];
+    expect(await tmdb.searchTv("sherlock")).toEqual([{ id: 19885, name: "Sherlock" }]);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(url.pathname).toBe("/3/search/tv");
     expect(url.searchParams.get("query")).toBe("sherlock");
     expect(url.searchParams.get("language")).toBe("tr-TR");
-    expect((init.headers as Record<string, string>).Authorization).toBe(
-      "Bearer test-token",
-    );
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
   });
 
   it("fetches seasons 20 at a time in Turkish and English and merges them", async () => {
@@ -151,11 +112,7 @@ describe("tmdb client", () => {
           overview: "",
           status: "Ended",
           seasons,
-          translations: {
-            translations: [
-              { iso_639_1: "en", data: { overview: "English overview" } },
-            ],
-          },
+          translations: { translations: [{ iso_639_1: "en", data: { overview: "English overview" } }] },
         });
       }
       const body: Record<string, unknown> = {};
@@ -165,9 +122,7 @@ describe("tmdb client", () => {
           season_number: n,
           name: `S${n}`,
           poster_path: null,
-          episodes: [
-            episode(1, lang === "tr-TR" ? "1. Bölüm" : `English ${n}`),
-          ],
+          episodes: [episode(1, lang === "tr-TR" ? "1. Bölüm" : `English ${n}`)],
         };
       }
       return json(body);
@@ -195,10 +150,7 @@ describe("tmdb client", () => {
         }),
       ),
     );
-    expect((await tmdb.searchMulti("x")).map((r) => r.media_type)).toEqual([
-      "movie",
-      "tv",
-    ]);
+    expect((await tmdb.searchMulti("x")).map((r) => r.media_type)).toEqual(["movie", "tv"]);
   });
 
   it("falls back to the English overview for untranslated movies", async () => {
@@ -210,9 +162,7 @@ describe("tmdb client", () => {
           title: "Film",
           overview: "",
           genres: [],
-          translations: {
-            translations: [{ iso_639_1: "en", data: { overview: "English" } }],
-          },
+          translations: { translations: [{ iso_639_1: "en", data: { overview: "English" } }] },
         }),
       ),
     );
@@ -224,10 +174,7 @@ describe("tmdb client", () => {
       "fetch",
       vi.fn(async () => json({}, 404)),
     );
-    await expect(tmdb.findTvByImdbId("tt0")).rejects.toMatchObject({
-      name: "TmdbError",
-      status: 404,
-    });
+    await expect(tmdb.findTvByImdbId("tt0")).rejects.toMatchObject({ name: "TmdbError", status: 404 });
 
     vi.useFakeTimers();
     const flaky = vi
@@ -242,17 +189,8 @@ describe("tmdb client", () => {
   });
 
   it("marks timeouts and fails clearly without a token", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockRejectedValue(
-          Object.assign(new Error("timeout"), { name: "TimeoutError" }),
-        ),
-    );
-    await expect(tmdb.searchTv("x", { retries: 0 })).rejects.toMatchObject({
-      timedOut: true,
-    });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(Object.assign(new Error("timeout"), { name: "TimeoutError" })));
+    await expect(tmdb.searchTv("x", { retries: 0 })).rejects.toMatchObject({ timedOut: true });
 
     vi.stubEnv("TMDB_API_KEY", "");
     await expect(tmdb.searchTv("x")).rejects.toBeInstanceOf(TmdbError);

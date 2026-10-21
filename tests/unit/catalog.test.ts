@@ -40,24 +40,14 @@ describe("needsImdbSync", () => {
   });
 
   it("syncs titles with an IMDb id that were never or long ago synced", () => {
-    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: null }, now)).toBe(
-      true,
-    );
-    expect(
-      needsImdbSync({ imdbId: "tt1", imdbSyncedAt: daysAgo(8) }, now),
-    ).toBe(true);
-    expect(
-      needsImdbSync({ imdbId: "tt1", imdbSyncedAt: daysAgo(2) }, now),
-    ).toBe(false);
+    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: null }, now)).toBe(true);
+    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: daysAgo(8) }, now)).toBe(true);
+    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: daysAgo(2) }, now)).toBe(false);
   });
 
   it("never syncs without an IMDb id or API key", () => {
-    expect(needsImdbSync({ imdbId: null, imdbSyncedAt: null }, now)).toBe(
-      false,
-    );
+    expect(needsImdbSync({ imdbId: null, imdbSyncedAt: null }, now)).toBe(false);
     vi.stubEnv("OMDB_API_KEY", "");
-    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: null }, now)).toBe(
-      false,
-    );
+    expect(needsImdbSync({ imdbId: "tt1", imdbSyncedAt: null }, now)).toBe(false);
   });
 });
