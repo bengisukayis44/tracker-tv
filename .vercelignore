@@ -1,0 +1,12 @@
+# Local secrets and backups never go to Vercel (its environment variables are set in the dashboard)
+.env*
+!.env.example
+.supabase-db-password
+backups/
+# Local build and test output
+.next
+.next-e2e
+test-results
+playwright-report
+playwright/.auth
+legacy-vite
