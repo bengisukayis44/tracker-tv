@@ -82,7 +82,13 @@ describe("watchEpisodeSchema", () => {
 
   it("accepts a full entry, trims the note and drops duplicate emotions", () => {
     const parsed = watchEpisodeSchema.parse({ ...base, emotions: ["MUTLU", "MUTLU", "GERGIN"] });
-    expect(parsed).toEqual({ episodeId: "ep1", rating: 8, emotions: ["MUTLU", "GERGIN"], note: "Harika" });
+    expect(parsed).toEqual({
+      episodeId: "ep1",
+      rating: 8,
+      emotions: ["MUTLU", "GERGIN"],
+      note: "Harika",
+      favoriteCastId: null,
+    });
   });
 
   it("accepts an empty entry (just 'İzledim')", () => {
@@ -91,6 +97,7 @@ describe("watchEpisodeSchema", () => {
       rating: null,
       emotions: [],
       note: null,
+      favoriteCastId: null,
     });
   });
 
@@ -102,6 +109,14 @@ describe("watchEpisodeSchema", () => {
     expect(watchEpisodeSchema.safeParse({ ...base, emotions: ["UZGUN"] }).success).toBe(false);
     expect(watchEpisodeSchema.safeParse({ ...base, note: "x".repeat(1001) }).success).toBe(false);
   });
+
+  it("accepts a favorite character id and rejects invalid ones", () => {
+    expect(watchEpisodeSchema.parse({ ...base, favoriteCastId: 71580 }).favoriteCastId).toBe(71580);
+    expect(watchEpisodeSchema.parse({ ...base, favoriteCastId: null }).favoriteCastId).toBeNull();
+    for (const favoriteCastId of [0, -3, 1.5, "71580"]) {
+      expect(watchEpisodeSchema.safeParse({ ...base, favoriteCastId }).success).toBe(false);
+    }
+  });
 });
 
 describe("watchMovieSchema", () => {
@@ -111,6 +126,7 @@ describe("watchMovieSchema", () => {
       rating: 9,
       emotions: ["HEYECANLI"],
       note: "Süper",
+      favoriteCastId: null,
     });
     expect(watchMovieSchema.safeParse({ titleId: "", rating: null, emotions: [], note: null }).success).toBe(false);
     expect(watchMovieSchema.safeParse({ titleId: "m1", rating: 11, emotions: [], note: null }).success).toBe(false);

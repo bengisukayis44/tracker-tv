@@ -37,6 +37,9 @@ test.describe("Arama", () => {
       `https://www.imdb.com/title/${INCEPTION.imdbId}/`,
     );
     await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
+    const cast = page.getByRole("region", { name: "Oyuncular" });
+    await expect(cast.getByText("Leonardo DiCaprio")).toBeVisible();
+    await expect(cast.getByText("Dom Cobb", { exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
 
@@ -66,6 +69,9 @@ test.describe("Dizi ve bölüm sayfaları", () => {
       "href",
       "https://www.imdb.com/title/tt1475582/",
     );
+    const cast = page.getByRole("region", { name: "Oyuncular" });
+    await expect(cast.getByText("Benedict Cumberbatch")).toBeVisible();
+    await expect(cast.getByText("Sherlock Holmes", { exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
 
     // Season tabs

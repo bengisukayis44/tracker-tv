@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { castFromAggregate, castFromCredits } from "@/lib/cast";
 import { omdb, OmdbError, isOmdbEnabled } from "@/lib/omdb";
 import { prisma } from "@/lib/prisma";
 import {
@@ -217,6 +218,11 @@ export function isStale(lastSyncedAt: Date | null, status: string | null, now = 
   return now - lastSyncedAt.getTime() > interval;
 }
 
+/** Due a refresh, or stored before the cast was fetched with titles. */
+function needsRefresh(title: { lastSyncedAt: Date | null; status: string | null; castMembers: unknown }) {
+  return isStale(title.lastSyncedAt, title.status) || title.castMembers === null;
+}
+
 // ---------- Storing a series ----------
 
 /** Average episode length: TMDB's series value if present, otherwise the mean of the episodes' runtimes. */
@@ -252,6 +258,7 @@ async function saveSeries(show: TmdbTvWithSeasons, existingTitleId?: string) {
     releaseDate: show.first_air_date ? new Date(show.first_air_date) : null,
     status: show.status || null,
     genres: show.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
+    castMembers: castFromAggregate(show.aggregate_credits?.cast ?? []),
   };
 
   const existing =
@@ -364,7 +371,7 @@ export type SeriesLookup =
  */
 export async function lookupSeries(tmdbId: number): Promise<SeriesLookup> {
   const stored = await findStoredSeries(tmdbId);
-  if (stored) return { status: "ready", series: stored, stale: isStale(stored.lastSyncedAt, stored.status) };
+  if (stored) return { status: "ready", series: stored, stale: needsRefresh(stored) };
 
   try {
     await saveSeries(await tmdb.getTvWithSeasons(tmdbId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));
@@ -406,6 +413,7 @@ async function saveMovie(movie: TmdbMovieDetails) {
     releaseDate: movie.release_date ? new Date(movie.release_date) : null,
     status: movie.status || null,
     genres: movie.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
+    castMembers: castFromCredits(movie.credits?.cast ?? []),
     lastSyncedAt: new Date(),
   };
   const existing = await prisma.title.findFirst({ where: { tmdbId: movie.id, type: "MOVIE" }, select: { id: true } });
@@ -424,7 +432,7 @@ export type MovieLookup = { status: "ready"; movie: Movie; stale: boolean } | { 
 /** Same stale-while-revalidate rules as lookupSeries. Unknown TMDB ids throw a TmdbError with status 404. */
 export async function lookupMovie(tmdbId: number): Promise<MovieLookup> {
   const stored = await findStoredMovie(tmdbId);
-  if (stored) return { status: "ready", movie: stored, stale: isStale(stored.lastSyncedAt, stored.status) };
+  if (stored) return { status: "ready", movie: stored, stale: needsRefresh(stored) };
 
   try {
     await saveMovie(await tmdb.getMovie(tmdbId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));

@@ -20,16 +20,25 @@ export async function getTitleViewerState(userId: string, titleId: string) {
 
 export type TitleViewerState = Awaited<ReturnType<typeof getTitleViewerState>>;
 
+const watchSelect = {
+  rating: true,
+  emotions: true,
+  note: true,
+  favoriteCastId: true,
+  favoriteCharacter: true,
+  watchedAt: true,
+} as const;
+
 export function getEpisodeWatch(userId: string, episodeId: string) {
   return prisma.watchedEpisode.findUnique({
     where: { userId_episodeId: { userId, episodeId } },
-    select: { rating: true, emotions: true, note: true, watchedAt: true },
+    select: watchSelect,
   });
 }
 
 export function getMovieWatch(userId: string, titleId: string) {
   return prisma.watchedMovie.findUnique({
     where: { userId_titleId: { userId, titleId } },
-    select: { rating: true, emotions: true, note: true, watchedAt: true },
+    select: watchSelect,
   });
 }

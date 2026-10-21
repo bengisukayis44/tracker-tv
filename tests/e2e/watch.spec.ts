@@ -199,6 +199,7 @@ test.describe("İzleme takibi", () => {
     await dialog.getByRole("radio", { name: "9 puan" }).click();
     await dialog.getByRole("button", { name: "Heyecanlı" }).click();
     await dialog.getByLabel("Kişisel not").fill("Rüya içinde rüya.");
+    await dialog.getByRole("button", { name: "Dom Cobb (Leonardo DiCaprio)" }).click();
     await dialog.getByRole("button", { name: "Kaydet" }).click();
 
     await expect(page.getByText("İzledin olarak kaydedildi.")).toBeVisible();
@@ -206,13 +207,22 @@ test.describe("İzleme takibi", () => {
     await expect(panel.getByText("9/10")).toBeVisible();
     await expect(panel.getByRole("list", { name: "Seçtiğin duygular" })).toHaveText("🤩Heyecanlı");
     await expect(panel.getByText("Rüya içinde rüya.")).toBeVisible();
+    await expect(panel.getByText("Dom Cobb")).toBeVisible();
+    await expect(panel.getByText("Leonardo DiCaprio")).toBeVisible();
 
     await page.reload();
     await page.getByRole("button", { name: "Düzenle" }).click();
     await expect(dialog.getByRole("radio", { name: "9 puan" })).toHaveAttribute("aria-checked", "true");
+    const cobb = dialog.getByRole("button", { name: "Dom Cobb (Leonardo DiCaprio)" });
+    await expect(cobb).toHaveAttribute("aria-pressed", "true");
+    // Choosing another character replaces it
+    await dialog.getByRole("button", { name: /^Arthur \(/ }).click();
+    await expect(cobb).toHaveAttribute("aria-pressed", "false");
     await dialog.getByRole("radio", { name: "7 puan" }).click();
     await dialog.getByRole("button", { name: "Kaydet" }).click();
     await expect(panel.getByText("7/10")).toBeVisible();
+    await expect(panel.getByText("Arthur", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Dom Cobb")).toHaveCount(0);
 
     // Favorites work on movies too
     await page.getByRole("button", { name: "Favorilere ekle" }).click();
@@ -222,6 +232,23 @@ test.describe("İzleme takibi", () => {
 
     await page.getByRole("button", { name: "İzlenmedi olarak işaretle" }).click();
     await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
+  });
+
+  test("bölüm: favori karakter seçilir ve kaldırılabilir", async ({ signedInPage: page }) => {
+    await page.goto(episodeUrl(1, 1));
+    await page.getByRole("button", { name: "İzledim" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "John Watson (Martin Freeman)" }).click();
+    await dialog.getByRole("button", { name: "Kaydet" }).click();
+    const panel = page.getByRole("region", { name: "İzledin" });
+    await expect(panel.getByText("John Watson")).toBeVisible();
+
+    // Clicking the chosen character again clears it
+    await page.getByRole("button", { name: "Düzenle" }).click();
+    await dialog.getByRole("button", { name: "John Watson (Martin Freeman)" }).click();
+    await dialog.getByRole("button", { name: "Kaydet" }).click();
+    await expect(page.getByText("Kaydın güncellendi.")).toBeVisible();
+    await expect(panel.getByText("Favori karakter")).toHaveCount(0);
   });
 
   test("film: giriş yapmamış ziyaretçi İzledim'e basınca giriş sayfasına gider", async ({ page }) => {

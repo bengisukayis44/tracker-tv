@@ -20,6 +20,13 @@ const watchFields = {
     .max(NOTE_MAX_LENGTH, `Not en fazla ${NOTE_MAX_LENGTH} karakter olabilir.`)
     .transform((s) => s.trim() || null)
     .nullable(),
+  /** TMDB person id of the favorite character's actor, from the title's cast */
+  favoriteCastId: z
+    .number()
+    .int()
+    .positive()
+    .nullish()
+    .transform((id) => id ?? null),
 };
 
 export const watchEpisodeSchema = z.object({ episodeId: z.string().min(1), ...watchFields });

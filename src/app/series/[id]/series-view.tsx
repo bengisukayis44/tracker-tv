@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ListVideo } from "lucide-react";
+import { CastList } from "@/components/cast-list";
 import { EmptyState } from "@/components/empty-state";
 import { EpisodeRow } from "@/components/episode-row";
 import { TitleHero } from "@/components/title-hero";
+import { parseCast } from "@/lib/cast";
 import { isAired, sortSeasons } from "@/lib/episodes";
 import { formatRuntime, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -99,6 +101,8 @@ export function SeriesView({
           </div>
         )}
       </TitleHero>
+
+      <CastList cast={parseCast(series.castMembers)} />
 
       {/* Seasons */}
       <section className="space-y-5" aria-labelledby="seasons-heading">

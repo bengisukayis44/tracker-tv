@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
+import { characterLabel, parseCast } from "@/lib/cast";
 import { isAired } from "@/lib/episodes";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,7 +23,11 @@ const NOT_AIRED = { ok: false, error: "Bu bölüm henüz yayınlanmadı." } as c
 async function findEpisode(episodeId: string) {
   return prisma.episode.findUnique({
     where: { id: episodeId },
-    select: { id: true, airDate: true, season: { select: { titleId: true, title: { select: { tmdbId: true } } } } },
+    select: {
+      id: true,
+      airDate: true,
+      season: { select: { titleId: true, title: { select: { tmdbId: true, castMembers: true } } } },
+    },
   });
 }
 
@@ -32,6 +37,18 @@ function revalidateTitle(tmdbId: number | null, type: "SERIES" | "MOVIE" = "SERI
   if (type === "MOVIE") revalidatePath(`/movie/${tmdbId}`);
   else revalidatePath(`/series/${tmdbId}`, "layout");
 }
+
+/**
+ * The favorite character fields to store: the character is looked up in the title's own cast, so only
+ * someone who is in it can be picked. Returns null when the id is not in the cast.
+ */
+function favoriteCharacter(castMembers: unknown, favoriteCastId: number | null) {
+  if (favoriteCastId === null) return { favoriteCastId: null, favoriteCharacter: null };
+  const member = parseCast(castMembers).find((m) => m.id === favoriteCastId);
+  return member ? { favoriteCastId, favoriteCharacter: characterLabel(member) } : null;
+}
+
+const CHARACTER_NOT_FOUND = { ok: false, error: "Seçilen karakter bu oyuncu kadrosunda yok." } as const;
 
 /** Watching any episode takes the title off the user's "Daha sonra izle" list (PROJE_PLANI.md §5). */
 async function removeFromWatchlist(userId: string, titleId: string) {
@@ -62,13 +79,15 @@ export async function saveEpisodeWatch(input: WatchEpisodeInput): Promise<Action
 
   const parsed = watchEpisodeSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Geçersiz bilgi." };
-  const { episodeId, rating, emotions, note } = parsed.data;
+  const { episodeId, rating, emotions, note, favoriteCastId } = parsed.data;
 
   const episode = await findEpisode(episodeId);
   if (!episode) return NOT_FOUND;
   if (!isAired(episode)) return NOT_AIRED;
+  const favorite = favoriteCharacter(episode.season.title.castMembers, favoriteCastId);
+  if (!favorite) return CHARACTER_NOT_FOUND;
 
-  const data = { rating, emotions, note };
+  const data = { rating, emotions, note, ...favorite };
   await prisma.watchedEpisode.upsert({
     where: { userId_episodeId: { userId: user.id, episodeId } },
     create: { userId: user.id, episodeId, ...data },
@@ -208,7 +227,7 @@ const MOVIE_NOT_FOUND = { ok: false, error: "Film bulunamadı." } as const;
 async function findMovie(titleId: string) {
   return prisma.title.findFirst({
     where: { id: titleId, type: "MOVIE" },
-    select: { id: true, tmdbId: true, releaseDate: true },
+    select: { id: true, tmdbId: true, releaseDate: true, castMembers: true },
   });
 }
 
@@ -219,13 +238,15 @@ export async function saveMovieWatch(input: WatchMovieInput): Promise<ActionResu
 
   const parsed = watchMovieSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Geçersiz bilgi." };
-  const { titleId, rating, emotions, note } = parsed.data;
+  const { titleId, rating, emotions, note, favoriteCastId } = parsed.data;
 
   const movie = await findMovie(titleId);
   if (!movie) return MOVIE_NOT_FOUND;
   if (!isAired({ airDate: movie.releaseDate })) return { ok: false, error: "Bu film henüz vizyona girmedi." };
+  const favorite = favoriteCharacter(movie.castMembers, favoriteCastId);
+  if (!favorite) return CHARACTER_NOT_FOUND;
 
-  const data = { rating, emotions, note };
+  const data = { rating, emotions, note, ...favorite };
   await prisma.watchedMovie.upsert({
     where: { userId_titleId: { userId: user.id, titleId } },
     create: { userId: user.id, titleId, ...data },

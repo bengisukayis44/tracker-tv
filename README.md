@@ -11,7 +11,15 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Bir bölüm işaretlenince, öncesinde izlenmemiş yayınlanmış bölüm varsa "Önceki N bölümü de izledin mi?" diye sorulur.
 - Dizi sayfasında ilerleme çubuğu ("5/12 bölüm izlendi"), **Favorilere ekle** ve **Daha sonra izle**.
   Diziden bir bölüm izlenince dizi "Daha sonra izle" listesinden otomatik çıkar (favoriler kalır).
+- İzledim penceresinde **favori karakter** de seçilebilir (dizinin/filmin oyuncu kadrosundan, tek seçim;
+  seçiliye tekrar basınca kaldırılır). Sunucu yalnızca o kadrodaki birini kabul eder.
 - Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
+
+## Oyuncular
+
+- Dizi ve film sayfalarında **Oyuncular**: oyuncu fotoğrafı, adı ve oynadığı karakter (en fazla 20 kişi).
+- TMDB'den içerikle birlikte çekilir (dizide `aggregate_credits`, filmde `credits`) ve `Title.castMembers`
+  sütununda saklanır; içerik yenilendikçe güncellenir. Kadrosu hiç çekilmemiş içerik ilk ziyarette arka planda yenilenir.
 
 ## Yorumlar (Faz 4)
 

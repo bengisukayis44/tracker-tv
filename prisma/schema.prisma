@@ -72,6 +72,7 @@ model Title {
   genres       String[]  @default([])
   lastSyncedAt DateTime?
   imdbSyncedAt DateTime? // OMDb puanlarının son çekildiği zaman
+  castMembers  Json? // CastMember[] (src/lib/cast.ts): başrol oyuncuları ve karakterleri; null = henüz çekilmedi
 
   seasons    Season[]
   comments   Comment[]
@@ -120,13 +121,15 @@ model Episode {
 // ---------- İzleme takibi ----------
 
 model WatchedEpisode {
-  id        String    @id @default(cuid())
-  userId    String
-  episodeId String
-  rating    Int? // 1-10
-  emotions  Emotion[] @default([])
-  note      String? // kişisel not (sadece kullanıcı görür)
-  watchedAt DateTime  @default(now())
+  id                String    @id @default(cuid())
+  userId            String
+  episodeId         String
+  rating            Int? // 1-10
+  emotions          Emotion[] @default([])
+  note              String? // kişisel not (sadece kullanıcı görür)
+  favoriteCastId    Int? // favori karakter: oyuncunun TMDB kimliği (Title.castMembers içinden)
+  favoriteCharacter String? // seçildiği andaki karakter adı
+  watchedAt         DateTime  @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
@@ -135,13 +138,15 @@ model WatchedEpisode {
 }
 
 model WatchedMovie {
-  id        String    @id @default(cuid())
-  userId    String
-  titleId   String
-  rating    Int?
-  emotions  Emotion[] @default([])
-  note      String?
-  watchedAt DateTime  @default(now())
+  id                String    @id @default(cuid())
+  userId            String
+  titleId           String
+  rating            Int?
+  emotions          Emotion[] @default([])
+  note              String?
+  favoriteCastId    Int? // favori karakter: oyuncunun TMDB kimliği (Title.castMembers içinden)
+  favoriteCharacter String? // seçildiği andaki karakter adı
+  watchedAt         DateTime  @default(now())
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)

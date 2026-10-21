@@ -1,3 +1,5 @@
+import type { TmdbAggregateCast, TmdbMovieCast } from "@/lib/cast";
+
 /**
  * TMDB API client (https://developer.themoviedb.org) — series (and later movies) data, in Turkish where available.
  * Auth: API Read Access Token (v4) as a Bearer token in TMDB_API_KEY.
@@ -61,6 +63,7 @@ export type TmdbTvDetails = {
   seasons: { season_number: number; name: string; poster_path: string | null; episode_count: number }[];
   external_ids?: { imdb_id: string | null; tvdb_id: number | null };
   translations?: { translations: { iso_639_1: string; data: { overview?: string; name?: string } }[] };
+  aggregate_credits?: { cast: TmdbAggregateCast[] };
 };
 
 export type TmdbMovieSearchItem = {
@@ -94,6 +97,7 @@ export type TmdbMovieDetails = {
   backdrop_path: string | null;
   imdb_id: string | null;
   translations?: { translations: { iso_639_1: string; data: { overview?: string; title?: string } }[] };
+  credits?: { cast: TmdbMovieCast[] };
 };
 
 /** A series with every season's episodes, Turkish with English fallbacks already applied. */
@@ -271,11 +275,11 @@ export const tmdb = {
     return movieGenresCache;
   },
 
-  /** Movie details in Turkish; the overview falls back to English when there is no translation. */
+  /** Movie details and cast in Turkish; the overview falls back to English when there is no translation. */
   async getMovie(id: number, options?: TmdbRequestOptions): Promise<TmdbMovieDetails> {
     const movie = await tmdbFetch<TmdbMovieDetails>(
       `/movie/${id}`,
-      { language: LANGUAGE, append_to_response: "translations" },
+      { language: LANGUAGE, append_to_response: "translations,credits" },
       options,
     );
     const englishOverview = movie.translations?.translations.find((t) => t.iso_639_1 === "en")?.data.overview;
@@ -292,11 +296,11 @@ export const tmdb = {
     return data.tv_results[0]?.id ?? null;
   },
 
-  /** Series details plus all seasons' episodes (Turkish, English fallback), in as few requests as possible. */
+  /** Series details, cast and all seasons' episodes (Turkish, English fallback), in as few requests as possible. */
   async getTvWithSeasons(id: number, options?: TmdbRequestOptions): Promise<TmdbTvWithSeasons> {
     const details = await tmdbFetch<TmdbTvDetails>(
       `/tv/${id}`,
-      { language: LANGUAGE, append_to_response: "external_ids,translations" },
+      { language: LANGUAGE, append_to_response: "external_ids,translations,aggregate_credits" },
       options,
     );
 

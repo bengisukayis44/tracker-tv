@@ -16,14 +16,22 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { CastMember } from "@/lib/cast";
 import type { EmotionValue } from "@/lib/emotions";
 import { NOTE_MAX_LENGTH } from "@/lib/validations/watch";
 import { EmotionList, EmotionPicker } from "./emotion-picker";
+import { CastAvatar, CharacterPicker } from "./character-picker";
 import { usePreviousEpisodesPrompt } from "./previous-episodes-prompt";
 import { RatingInput } from "./rating-input";
 import { useLoginRedirect } from "./use-login-redirect";
 
-export type SavedWatch = { rating: number | null; emotions: string[]; note: string | null };
+export type SavedWatch = {
+  rating: number | null;
+  emotions: string[];
+  note: string | null;
+  favoriteCastId: number | null;
+  favoriteCharacter: string | null;
+};
 
 /** What is being marked: an episode (offers to mark earlier ones too) or a movie. */
 export type WatchTarget = { kind: "episode"; episodeId: string } | { kind: "movie"; titleId: string };
@@ -37,12 +45,15 @@ export function WatchPanel({
   aired,
   signedIn,
   watch,
+  cast,
 }: {
   target: WatchTarget;
   /** Episode aired / movie released */
   aired: boolean;
   signedIn: boolean;
   watch: SavedWatch | null;
+  /** The series' or movie's cast, for "Favori karakterin" */
+  cast: CastMember[];
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -61,6 +72,7 @@ export function WatchPanel({
   }
 
   const openForm = () => (signedIn ? setOpen(true) : goToLogin());
+  const favoriteMember = cast.find((m) => m.id === watch?.favoriteCastId);
 
   const unwatch = () =>
     startTransition(async () => {
@@ -95,7 +107,7 @@ export function WatchPanel({
 
           <dl className="space-y-3 text-sm">
             <div className="flex items-center gap-2">
-              <dt className="text-muted-foreground w-20 shrink-0">Puanın</dt>
+              <dt className="text-muted-foreground w-28 shrink-0">Puanın</dt>
               <dd className="inline-flex items-center gap-1 font-bold text-amber-400">
                 {watch.rating != null ? (
                   <>
@@ -108,7 +120,7 @@ export function WatchPanel({
               </dd>
             </div>
             <div className="flex items-start gap-2">
-              <dt className="text-muted-foreground w-20 shrink-0 pt-1">Duygular</dt>
+              <dt className="text-muted-foreground w-28 shrink-0 pt-1">Duygular</dt>
               <dd>
                 {watch.emotions.length > 0 ? (
                   <EmotionList value={watch.emotions} />
@@ -117,9 +129,23 @@ export function WatchPanel({
                 )}
               </dd>
             </div>
+            {watch.favoriteCharacter && (
+              <div className="flex items-center gap-2">
+                <dt className="text-muted-foreground w-28 shrink-0">Favori karakter</dt>
+                <dd className="flex min-w-0 items-center gap-2">
+                  <CastAvatar member={favoriteMember} className="size-8" />
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{watch.favoriteCharacter}</span>
+                    {favoriteMember && (
+                      <span className="text-muted-foreground block text-xs">{favoriteMember.name}</span>
+                    )}
+                  </span>
+                </dd>
+              </div>
+            )}
             {watch.note && (
               <div className="flex items-start gap-2">
-                <dt className="text-muted-foreground w-20 shrink-0">Notun</dt>
+                <dt className="text-muted-foreground w-28 shrink-0">Notun</dt>
                 <dd className="min-w-0 space-y-1">
                   <p className="break-words whitespace-pre-wrap">{watch.note}</p>
                   <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
@@ -137,7 +163,9 @@ export function WatchPanel({
             <h2 id="watch-heading" className="text-lg font-bold">
               {target.kind === "movie" ? "Bu filmi izledin mi?" : "Bu bölümü izledin mi?"}
             </h2>
-            <p className="text-muted-foreground text-sm">Puan ver, hislerini ve kendine bir not bırak.</p>
+            <p className="text-muted-foreground text-sm">
+              Puan ver, hislerini{cast.length > 0 && ", favori karakterini"} ve kendine bir not bırak.
+            </p>
           </div>
           <Button size="lg" onClick={openForm}>
             <Eye />
@@ -153,6 +181,7 @@ export function WatchPanel({
           onOpenChange={setOpen}
           target={target}
           initial={watch}
+          cast={cast}
           onSaved={(previousUnwatched) => {
             if (target.kind === "episode") offerPreviousEpisodes(target.episodeId, previousUnwatched);
           }}
@@ -168,18 +197,24 @@ function WatchDialog({
   onOpenChange,
   target,
   initial,
+  cast,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   target: WatchTarget;
   initial: SavedWatch | null;
+  cast: CastMember[];
   /** Called after a first save with the number of earlier unwatched episodes */
   onSaved: (previousUnwatched: number) => void;
 }) {
   const [rating, setRating] = useState<number | null>(initial?.rating ?? null);
   const [emotions, setEmotions] = useState<EmotionValue[]>((initial?.emotions ?? []) as EmotionValue[]);
   const [note, setNote] = useState(initial?.note ?? "");
+  // Someone who has since left the cast cannot be shown in the picker, so they are not kept
+  const [favoriteCastId, setFavoriteCastId] = useState<number | null>(
+    cast.some((m) => m.id === initial?.favoriteCastId) ? initial!.favoriteCastId : null,
+  );
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -187,7 +222,7 @@ function WatchDialog({
   const save = () => {
     setError(undefined);
     startTransition(async () => {
-      const fields = { rating, emotions, note };
+      const fields = { rating, emotions, note, favoriteCastId };
       const result =
         target.kind === "movie"
           ? await saveMovieWatch({ titleId: target.titleId, ...fields })
@@ -224,6 +259,14 @@ function WatchDialog({
             </Label>
             <EmotionPicker value={emotions} onChange={setEmotions} />
           </div>
+          {cast.length > 0 && (
+            <div className="space-y-2">
+              <Label asChild>
+                <span>Favori karakterin</span>
+              </Label>
+              <CharacterPicker cast={cast} value={favoriteCastId} onChange={setFavoriteCastId} />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="watch-note">Kişisel not</Label>
             <Textarea

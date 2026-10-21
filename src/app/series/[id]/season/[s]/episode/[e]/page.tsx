@@ -7,6 +7,7 @@ import { CommentSection } from "@/components/comments/comment-section";
 import { RatingBadge } from "@/components/rating-badge";
 import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
+import { parseCast } from "@/lib/cast";
 import { getComments } from "@/lib/comment-data";
 import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
@@ -91,6 +92,7 @@ export default async function EpisodePage({ params }: Props) {
         aired={aired}
         signedIn={user !== null}
         watch={watch}
+        cast={parseCast(series.castMembers)}
       />
 
       <div className="bg-muted relative aspect-video overflow-hidden rounded-2xl border">
