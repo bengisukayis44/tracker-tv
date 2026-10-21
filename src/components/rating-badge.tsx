@@ -2,7 +2,7 @@ import { Star } from "lucide-react";
 import type { DisplayRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** 0-10 rating labelled with where it comes from (IMDb, or TVmaze when IMDb has none). */
+/** 0-10 rating labelled with where it comes from (IMDb, or TMDB when IMDb has none). */
 export function RatingBadge({ rating, className }: { rating: DisplayRating | null; className?: string }) {
   if (!rating) return null;
   return (

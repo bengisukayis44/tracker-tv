@@ -1,48 +1,57 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// In-memory stand-ins for the database and TVmaze
-const { db, tvmazeMock } = vi.hoisted(() => ({
+// In-memory stand-ins for the database and TMDB
+const { db, tmdbMock } = vi.hoisted(() => ({
   db: {
     searchCache: { findUnique: vi.fn(), upsert: vi.fn() },
-    title: { findMany: vi.fn(), findUnique: vi.fn() },
+    title: { findMany: vi.fn(), findFirst: vi.fn() },
   },
-  tvmazeMock: { searchShows: vi.fn(), getShowWithEpisodes: vi.fn() },
+  tmdbMock: { searchTv: vi.fn(), tvGenres: vi.fn(), getTvWithSeasons: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
-vi.mock("@/lib/tvmaze", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/tvmaze")>()),
-  tvmaze: tvmazeMock,
+vi.mock("@/lib/tmdb", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tmdb")>()),
+  tmdb: tmdbMock,
 }));
 
-const { lookupSeries, normalizeQuery, refreshSearchCache, searchTitles } = await import("@/lib/catalog");
-const { TvmazeError } = await import("@/lib/tvmaze");
+const { airDateFromTmdb, averageRuntime, lookupSeries, normalizeQuery, refreshSearchCache, searchTitles } =
+  await import("@/lib/catalog");
+const { TmdbError } = await import("@/lib/tmdb");
 
-const show = {
-  id: 335,
-  name: "Sherlock",
-  genres: ["Drama"],
-  status: "Ended",
-  premiered: "2010-07-25",
-  rating: { average: 8.9 },
+const item = {
+  id: 19885,
+  name: "‎Sherlock",
+  overview: "Özet",
+  poster_path: "/p.jpg",
+  first_air_date: "2010-07-25",
+  vote_average: 8.504,
+  vote_count: 100,
+  genre_ids: [80, 18, 999],
 };
 const result = {
-  tvmazeId: 335,
+  tmdbId: 19885,
   type: "SERIES",
   name: "Sherlock",
-  posterUrl: null,
+  posterUrl: "https://image.tmdb.org/t/p/w342/p.jpg",
   year: 2010,
-  status: "Ended",
-  sourceRating: 8.9,
+  status: null,
+  sourceRating: 8.5,
   imdbRating: null,
-  genres: ["Drama"],
-  overview: null,
+  genres: ["Suç", "Dram"],
+  overview: "Özet",
 };
-const timeout = () => new TvmazeError("TVmaze'e ulaşılamadı", undefined, true);
+const timeout = () => new TmdbError("TMDB'ye ulaşılamadı", undefined, true);
 
 beforeEach(() => {
   vi.clearAllMocks();
   db.title.findMany.mockResolvedValue([]);
   db.searchCache.upsert.mockResolvedValue({});
+  tmdbMock.tvGenres.mockResolvedValue(
+    new Map([
+      [80, "Suç"],
+      [18, "Dram"],
+    ]),
+  );
 });
 
 describe("normalizeQuery", () => {
@@ -53,91 +62,120 @@ describe("normalizeQuery", () => {
 });
 
 describe("searchTitles", () => {
-  it("serves a fresh stored search without calling TVmaze", async () => {
+  it("serves a fresh stored search without calling TMDB", async () => {
     db.searchCache.findUnique.mockResolvedValue({ results: [result], fetchedAt: new Date() });
-    const outcome = await searchTitles("Sherlock");
-    expect(outcome).toEqual({ results: [result], partial: false });
-    expect(tvmazeMock.searchShows).not.toHaveBeenCalled();
+    expect(await searchTitles("Sherlock")).toEqual({ results: [result], partial: false });
+    expect(tmdbMock.searchTv).not.toHaveBeenCalled();
   });
 
-  it("asks TVmaze with a short timeout and no retries, then stores the result", async () => {
+  it("asks TMDB with a short timeout, maps genres and images, and stores the result", async () => {
     db.searchCache.findUnique.mockResolvedValue(null);
-    tvmazeMock.searchShows.mockResolvedValue([show]);
+    tmdbMock.searchTv.mockResolvedValue([item]);
 
     const outcome = await searchTitles("Sherlock");
-    expect(outcome.partial).toBe(false);
-    expect(outcome.results.map((r) => r.name)).toEqual(["Sherlock"]);
-    expect(tvmazeMock.searchShows).toHaveBeenCalledWith("Sherlock", { timeoutMs: 4000, retries: 0 });
+    expect(outcome).toEqual({ results: [result], partial: false });
+    expect(tmdbMock.searchTv).toHaveBeenCalledWith("Sherlock", { timeoutMs: 4000, retries: 0 });
     expect(db.searchCache.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { query: "sherlock" } }));
   });
 
-  it("falls back to stored series when TVmaze is too slow", async () => {
+  it("still returns results when the genre list cannot be loaded", async () => {
     db.searchCache.findUnique.mockResolvedValue(null);
-    tvmazeMock.searchShows.mockRejectedValue(timeout());
+    tmdbMock.searchTv.mockResolvedValue([item]);
+    tmdbMock.tvGenres.mockRejectedValue(timeout());
+    expect((await searchTitles("Sherlock")).results[0].genres).toEqual([]);
+  });
+
+  it("falls back to stored series when TMDB is too slow", async () => {
+    db.searchCache.findUnique.mockResolvedValue(null);
+    tmdbMock.searchTv.mockRejectedValue(timeout());
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     db.title.findMany.mockResolvedValueOnce([
       {
-        tvmazeId: 335,
+        tmdbId: 19885,
         name: "Sherlock",
         posterUrl: null,
         releaseDate: new Date("2010-07-25"),
         status: "Ended",
-        sourceRating: 8.9,
+        sourceRating: 8.5,
         imdbRating: 9.1,
-        genres: ["Drama"],
+        genres: ["Dram"],
         overview: null,
       },
     ]);
 
     const outcome = await searchTitles("sherl");
     expect(outcome.partial).toBe(true);
-    expect(outcome.results).toMatchObject([{ tvmazeId: 335, name: "Sherlock", year: 2010, imdbRating: 9.1 }]);
+    expect(outcome.results).toMatchObject([{ tmdbId: 19885, name: "Sherlock", year: 2010, imdbRating: 9.1 }]);
   });
 
-  it("prefers an older stored search over the name fallback when TVmaze is slow", async () => {
+  it("prefers an older stored search over the name fallback when TMDB is slow", async () => {
     const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     db.searchCache.findUnique.mockResolvedValue({ results: [result], fetchedAt: old });
-    tvmazeMock.searchShows.mockRejectedValue(timeout());
-
-    const outcome = await searchTitles("Sherlock");
-    expect(outcome).toEqual({ results: [result], partial: true });
+    tmdbMock.searchTv.mockRejectedValue(timeout());
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await searchTitles("Sherlock")).toEqual({ results: [result], partial: true });
   });
 
   it("finishes a slow search in the background with a long timeout and never throws", async () => {
-    tvmazeMock.searchShows.mockResolvedValue([show]);
+    tmdbMock.searchTv.mockResolvedValue([item]);
     await refreshSearchCache("Sherlock");
-    expect(tvmazeMock.searchShows).toHaveBeenCalledWith("Sherlock", { timeoutMs: 60000, retries: 1 });
+    expect(tmdbMock.searchTv).toHaveBeenCalledWith("Sherlock", { timeoutMs: 60000, retries: 1 });
     expect(db.searchCache.upsert).toHaveBeenCalled();
 
-    tvmazeMock.searchShows.mockRejectedValue(timeout());
+    tmdbMock.searchTv.mockRejectedValue(timeout());
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(refreshSearchCache("Sherlock")).resolves.toBeUndefined();
   });
 });
 
 describe("lookupSeries", () => {
-  const stored = (lastSyncedAt: Date) => ({ id: "t1", tvmazeId: 335, status: "Ended", lastSyncedAt, seasons: [] });
+  const stored = (lastSyncedAt: Date) => ({ id: "t1", tmdbId: 19885, status: "Ended", lastSyncedAt, seasons: [] });
 
   it("returns a stored series at once and flags it when it is due a refresh", async () => {
-    db.title.findUnique.mockResolvedValue(stored(new Date()));
-    expect(await lookupSeries(335)).toMatchObject({ status: "ready", stale: false });
+    db.title.findFirst.mockResolvedValue(stored(new Date()));
+    expect(await lookupSeries(19885)).toMatchObject({ status: "ready", stale: false });
+    expect(db.title.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tmdbId: 19885, type: "SERIES" } }),
+    );
 
-    db.title.findUnique.mockResolvedValue(stored(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
-    expect(await lookupSeries(335)).toMatchObject({ status: "ready", stale: true });
-    expect(tvmazeMock.getShowWithEpisodes).not.toHaveBeenCalled();
+    db.title.findFirst.mockResolvedValue(stored(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
+    expect(await lookupSeries(19885)).toMatchObject({ status: "ready", stale: true });
+    expect(tmdbMock.getTvWithSeasons).not.toHaveBeenCalled();
   });
 
   it("reports 'preparing' when a never-opened series does not arrive in time", async () => {
-    db.title.findUnique.mockResolvedValue(null);
-    tvmazeMock.getShowWithEpisodes.mockRejectedValue(timeout());
+    db.title.findFirst.mockResolvedValue(null);
+    tmdbMock.getTvWithSeasons.mockRejectedValue(timeout());
     vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(await lookupSeries(42)).toEqual({ status: "preparing" });
-    expect(tvmazeMock.getShowWithEpisodes).toHaveBeenCalledWith(42, { timeoutMs: 10000, retries: 0 });
+    expect(tmdbMock.getTvWithSeasons).toHaveBeenCalledWith(42, { timeoutMs: 10000, retries: 0 });
   });
 
   it("still reports unknown shows as not found", async () => {
-    db.title.findUnique.mockResolvedValue(null);
-    tvmazeMock.getShowWithEpisodes.mockRejectedValue(new TvmazeError("yok", 404));
+    db.title.findFirst.mockResolvedValue(null);
+    tmdbMock.getTvWithSeasons.mockRejectedValue(new TmdbError("yok", 404));
     await expect(lookupSeries(99999999)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("storing helpers", () => {
+  it("uses TMDB's runtime when given, otherwise the episodes' average", () => {
+    expect(averageRuntime({ episode_run_time: [90], seasonsWithEpisodes: [] })).toBe(90);
+    const seasons = [
+      {
+        season_number: 1,
+        name: "",
+        poster_path: null,
+        episodes: [{ runtime: 40 }, { runtime: 50 }, { runtime: null }],
+      },
+    ];
+    expect(averageRuntime({ episode_run_time: [], seasonsWithEpisodes: seasons as never })).toBe(45);
+    expect(averageRuntime({ episode_run_time: [], seasonsWithEpisodes: [] })).toBeNull();
+  });
+
+  it("stores date-only air dates as midnight UTC", () => {
+    expect(airDateFromTmdb("2010-07-25")).toBe("2010-07-25T00:00:00.000Z");
+    expect(airDateFromTmdb(null)).toBeNull();
   });
 });

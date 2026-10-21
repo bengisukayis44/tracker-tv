@@ -4,8 +4,8 @@
 // - Veritabanı: Supabase PostgreSQL. Kimlik doğrulama Supabase Auth'ta (auth.users);
 //   `User` uygulamanın profil tablosudur ve id'si auth.users.id ile aynıdır. Profil satırı
 //   auth.users'a eklenen her kullanıcı için veritabanı tetikleyicisiyle oluşturulur/silinir.
-// - İçerik kaynağı TVmaze (+ IMDb puanları için OMDb): `tvmazeId` alanları eklendi,
-//   `tmdbId` ileride TMDB'ye geçilirse doldurulacak.
+// - İçerik kaynağı TMDB (+ IMDb puanları için OMDb). `tvmazeId` alanları ilk kaynaktan (TVmaze) kalma;
+//   bölümler TMDB ile (sezon, bölüm no) üzerinden eşleşir.
 
 generator client {
   provider = "prisma-client"
@@ -99,7 +99,8 @@ model Episode {
   id            String    @id @default(cuid())
   seasonId      String
   episodeNumber Int
-  tvmazeId      Int?      @unique
+  tvmazeId      Int?      @unique // eski kaynak (TVmaze); TMDB'ye taşınan bölümlerde kalır
+  tmdbId        Int? // TMDB bölüm kimliği; eşleştirme (sezon, bölüm no) ile yapılır
   name          String
   overview      String?
   imdbId        String?

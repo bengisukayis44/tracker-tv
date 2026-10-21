@@ -25,7 +25,7 @@ Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 | Yol | Sayfa |
 |---|---|
 | `/search?q=…&tur=hepsi\|dizi\|film` | Arama (film filtresi, film kaynağı eklenene kadar boş) |
-| `/series/[id]` | Dizi detay + ilk sezonun bölümleri (`id` = TVmaze kimliği) |
+| `/series/[id]` | Dizi detay + ilk sezonun bölümleri (`id` = TMDB dizi kimliği) |
 | `/series/[id]/season/[s]` | Aynı sayfa, seçili sezonla (eski `?sezon=N` adresleri buraya yönlenir) |
 | `/series/[id]/season/[s]/episode/[e]` | Bölüm sayfası, önceki/sonraki bölüm |
 | `/login`, `/register` | Giriş (e-posta veya kullanıcı adı) / kayıt |
@@ -35,7 +35,7 @@ Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 - Next.js 15 (App Router) + TypeScript, Tailwind CSS 4 + shadcn/ui
 - Supabase: PostgreSQL (Frankfurt, ücretsiz plan) + Supabase Auth (e-posta/şifre, e-posta doğrulaması kapalı)
 - Prisma 7 (`@prisma/adapter-pg`)
-- İçerik: TVmaze API (anahtarsız) · IMDb puanları: OMDb API (`OMDB_API_KEY`)
+- İçerik: TMDB API (`TMDB_API_KEY`, Türkçe; çevirisi olmayan bölümlerde İngilizce) · IMDb puanları: OMDb API (`OMDB_API_KEY`)
 - Testler: Vitest (birim) + Playwright (uçtan uca, masaüstü ve mobil)
 
 ## Kurulum
@@ -54,7 +54,7 @@ npm test             # birim testleri (Vitest) — saniyeler sürer, ağ gerekti
 npm run test:e2e     # uçtan uca testler (Playwright) — üretim derlemesi alıp 3100 portunda çalıştırır
 ```
 
-Uçtan uca testler gerçek Supabase veritabanını ve TVmaze'i kullanır. Her test işçisi `@e2e.test` ile biten
+Uçtan uca testler gerçek Supabase veritabanını ve TMDB'yi kullanır. Her test işçisi `@e2e.test` ile biten
 hesaplarını Supabase Admin API ile bir kez açar (`SUPABASE_SECRET_KEY` gerekir, yalnızca `.env`'de durur),
 her testten önce o hesabın izleme verisini sıfırlar ve tur bitince hesapları siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
 GitHub'da her push'ta lint, tip kontrolü, birim testleri ve derleme otomatik çalışır (`.github/workflows/ci.yml`);
@@ -69,8 +69,8 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 | `supabase/config.toml` | Supabase Auth ayarları (`supabase config push` ile uygulanır) |
 | `src/middleware.ts`, `src/lib/supabase/`, `src/lib/auth.ts` | Oturum yenileme ve oturumdaki kullanıcı |
 | `src/app/(auth)/` | Giriş / kayıt sayfaları ve server action'lar |
-| `src/lib/tvmaze.ts`, `src/lib/omdb.ts` | Dış API istemcileri |
-| `src/lib/catalog.ts` | İçerik katmanı: TVmaze ve OMDb verisini veritabanına önbellekler |
+| `src/lib/tmdb.ts`, `src/lib/omdb.ts` | Dış API istemcileri |
+| `src/lib/catalog.ts` | İçerik katmanı: TMDB ve OMDb verisini veritabanına önbellekler |
 | `tests/unit/`, `tests/e2e/` | Birim ve uçtan uca testler |
 | `legacy-vite/` | Eski Vite + localStorage sürümü (referans için) |
 
@@ -96,16 +96,19 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 
 ## Önbellekleme
 
-- Bir dizi ilk açıldığında TVmaze'den çekilip `Title` / `Season` / `Episode` tablolarına toplu SQL ile yazılır.
-  Devam eden diziler 1 günde, bitmiş diziler 7 günde bir yenilenir. TVmaze'e ulaşılamazsa eski veri gösterilir;
-  geçici hatalar (bağlantı, 502-504, 429) otomatik tekrar denenir.
+- Bir dizi ilk açıldığında TMDB'den çekilip `Title` / `Season` / `Episode` tablolarına toplu SQL ile yazılır
+  (sezonlar 20'şerli tek istekle). Kayıtlı dizi her zaman anında gösterilir; devam edenler 1 günde, bitmiş/iptal
+  edilenler 7 günde bir arka planda yenilenir. Hiç açılmamış dizi 10 sn'de gelmezse "Dizi hazırlanıyor" sayfası çıkar.
+- Bölümler (sezon, bölüm no) ile eşleşir; kaynakta artık olmayan bölümler yalnızca kimse izlememişse silinir.
 - IMDb puanları sayfa gönderildikten sonra arka planda OMDb'den çekilir (dizi başına 1 + sezon sayısı istek)
   ve 7 gün saklanır. OMDb ücretsiz anahtarı günde 1.000 istek verir; limit dolarsa ertesi gün tekrar denenir.
-- Arama sonuçları 10 dakika bellekte tutulur. IMDb puanı yoksa TVmaze puanı gösterilir; kaynak her zaman yazılır.
+- Arama sonuçları veritabanında 24 saat tutulur; kaynak 4 sn'de yanıt vermezse kayıtlı diziler gösterilir ve arama
+  arka planda tamamlanır. IMDb puanı yoksa TMDB puanı gösterilir; kaynak her zaman yazılır.
 
 ## Plandan sapmalar
 
-- **TVmaze:** Film içermediği için film araması/sayfası henüz yok; `tmdbId` alanı ileride TMDB için duruyor.
+- **Veri kaynağı:** İlk sürüm TVmaze kullanıyordu; 21 Ekim 2026'da TMDB'ye taşındı (`npm run migrate:tmdb`,
+  izleme geçmişi korunarak). Film sayfaları henüz yok. Sayfa altında TMDB'nin istediği logo ve atıf yer alır.
 - **Sezon adresi:** `/series/[id]/season/[s]` (planda yoktu). Next.js 15.5'te yalnızca `?sezon=` değişen
   gezinmeler ekrana gelmiyordu. Aynı nedenle dizi/sezon sayfalarında `loading.tsx` ya da `Suspense` yok: ikisi de
   sekme geçişlerini ve "izledim" sonrası ilerleme güncellemesini ekrana yansıtmıyordu.

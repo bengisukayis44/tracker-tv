@@ -34,14 +34,16 @@ export function SeriesView({
   const progress = watchProgress(seasons, watchedIds);
   const activeSeason = seasons.find((s) => s.seasonNumber === seasonNumber) ?? seasons[0];
   const genres = series.genres;
-  const totalEpisodes = seasons.reduce((sum, s) => sum + s.episodes.length, 0);
+  // Specials (season 0) get their own tab but are left out of the counts
+  const regularSeasons = seasons.filter((s) => s.seasonNumber !== 0);
+  const totalEpisodes = regularSeasons.reduce((sum, s) => sum + s.episodes.length, 0);
   const firstYear = series.releaseDate?.getFullYear();
-  const lastAired = seasons
+  const lastAired = regularSeasons
     .flatMap((s) => s.episodes)
     .filter((ep) => isAired(ep))
     .reduce<Date | null>((latest, ep) => (!latest || ep.airDate! > latest ? ep.airDate : latest), null);
   const yearRange =
-    firstYear && series.status === "Ended" && lastAired && lastAired.getFullYear() !== firstYear
+    firstYear && (series.status === "Ended" || series.status === "Canceled") && lastAired && lastAired.getFullYear() !== firstYear
       ? `${firstYear}–${lastAired.getFullYear()}`
       : firstYear;
 
@@ -72,12 +74,12 @@ export function SeriesView({
               <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 {yearRange && <span>{yearRange}</span>}
                 {statusLabel(series.status) && (
-                  <span className={cn(series.status === "Running" && "text-emerald-400")}>
+                  <span className={cn(series.status === "Returning Series" && "text-emerald-400")}>
                     {statusLabel(series.status)}
                   </span>
                 )}
                 <span>
-                  {seasons.length} sezon · {totalEpisodes} bölüm
+                  {regularSeasons.length} sezon · {totalEpisodes} bölüm
                 </span>
                 {formatRuntime(series.runtime) && <span>~{formatRuntime(series.runtime)}/bölüm</span>}
               </div>

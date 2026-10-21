@@ -16,13 +16,13 @@ const NOT_AIRED = { ok: false, error: "Bu bölüm henüz yayınlanmadı." } as c
 async function findEpisode(episodeId: string) {
   return prisma.episode.findUnique({
     where: { id: episodeId },
-    select: { id: true, airDate: true, season: { select: { titleId: true, title: { select: { tvmazeId: true } } } } },
+    select: { id: true, airDate: true, season: { select: { titleId: true, title: { select: { tmdbId: true } } } } },
   });
 }
 
-function revalidateTitle(tvmazeId: number | null) {
+function revalidateTitle(tmdbId: number | null) {
   // "layout" refreshes the series page, its season pages and every episode page under it
-  if (tvmazeId != null) revalidatePath(`/series/${tvmazeId}`, "layout");
+  if (tmdbId != null) revalidatePath(`/series/${tmdbId}`, "layout");
 }
 
 /** Watching any episode takes the title off the user's "Daha sonra izle" list (PROJE_PLANI.md §5). */
@@ -69,7 +69,7 @@ export async function saveEpisodeWatch(input: WatchEpisodeInput): Promise<Action
   await removeFromWatchlist(user.id, episode.season.titleId);
 
   const previous = await unwatchedPreviousIds(user.id, episode.season.titleId, episodeId);
-  revalidateTitle(episode.season.title.tvmazeId);
+  revalidateTitle(episode.season.title.tmdbId);
   return { ok: true, previousUnwatched: previous.length };
 }
 
@@ -91,7 +91,7 @@ export async function markEpisodeWatched(episodeId: string): Promise<ActionResul
   await removeFromWatchlist(user.id, episode.season.titleId);
 
   const previous = await unwatchedPreviousIds(user.id, episode.season.titleId, episodeId);
-  revalidateTitle(episode.season.title.tvmazeId);
+  revalidateTitle(episode.season.title.tmdbId);
   return { ok: true, previousUnwatched: previous.length };
 }
 
@@ -105,7 +105,7 @@ export async function unwatchEpisode(episodeId: string): Promise<ActionResult> {
   if (!episode) return NOT_FOUND;
 
   await prisma.watchedEpisode.deleteMany({ where: { userId: user.id, episodeId } });
-  revalidateTitle(episode.season.title.tvmazeId);
+  revalidateTitle(episode.season.title.tmdbId);
   return { ok: true };
 }
 
@@ -123,7 +123,7 @@ export async function markPreviousEpisodesWatched(episodeId: string): Promise<Ac
     data: ids.map((id) => ({ userId: user.id, episodeId: id })),
     skipDuplicates: true,
   });
-  revalidateTitle(episode.season.title.tvmazeId);
+  revalidateTitle(episode.season.title.tmdbId);
   return { ok: true, marked: count };
 }
 
@@ -137,7 +137,7 @@ export async function setSeasonWatched(seasonId: string, watched: boolean): Prom
     where: { id: seasonId },
     select: {
       titleId: true,
-      title: { select: { tvmazeId: true } },
+      title: { select: { tmdbId: true } },
       episodes: { select: { id: true, episodeNumber: true, airDate: true } },
     },
   });
@@ -156,7 +156,7 @@ export async function setSeasonWatched(seasonId: string, watched: boolean): Prom
       where: { userId: user.id, episodeId: { in: season.episodes.map((ep) => ep.id) } },
     }));
   }
-  revalidateTitle(season.title.tvmazeId);
+  revalidateTitle(season.title.tmdbId);
   return { ok: true, changed };
 }
 
@@ -168,7 +168,7 @@ async function toggleListEntry(
   if (!user) return LOGIN_REQUIRED;
   if (!idSchema.safeParse(titleId).success) return { ok: false, error: "Dizi bulunamadı." };
 
-  const title = await prisma.title.findUnique({ where: { id: titleId }, select: { tvmazeId: true } });
+  const title = await prisma.title.findUnique({ where: { id: titleId }, select: { tmdbId: true } });
   if (!title) return { ok: false, error: "Dizi bulunamadı." };
 
   const where = { userId_titleId: { userId: user.id, titleId } };
@@ -181,7 +181,7 @@ async function toggleListEntry(
     active = !(await prisma.watchlistItem.findUnique({ where }));
     await (active ? prisma.watchlistItem.create({ data }) : prisma.watchlistItem.delete({ where }));
   }
-  revalidateTitle(title.tvmazeId);
+  revalidateTitle(title.tmdbId);
   return { ok: true, active };
 }
 

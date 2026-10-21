@@ -1,23 +1,23 @@
 import { after, NextResponse } from "next/server";
 import { lookupSeries, refreshSeries } from "@/lib/catalog";
-import { TvmazeError } from "@/lib/tvmaze";
+import { TmdbError } from "@/lib/tmdb";
 
 // GET /api/series/335 — series with seasons and episodes, served from the database cache
-export async function GET(_request: Request, { params }: { params: Promise<{ tvmazeId: string }> }) {
-  const tvmazeId = Number((await params).tvmazeId);
-  if (!Number.isInteger(tvmazeId) || tvmazeId <= 0) {
+export async function GET(_request: Request, { params }: { params: Promise<{ tmdbId: string }> }) {
+  const tmdbId = Number((await params).tmdbId);
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
     return NextResponse.json({ error: "Geçersiz dizi kimliği." }, { status: 400 });
   }
 
   try {
-    const lookup = await lookupSeries(tvmazeId);
-    if (lookup.status === "preparing" || lookup.stale) after(() => refreshSeries(tvmazeId));
+    const lookup = await lookupSeries(tmdbId);
+    if (lookup.status === "preparing" || lookup.stale) after(() => refreshSeries(tmdbId));
     if (lookup.status === "preparing") {
       return NextResponse.json({ status: "preparing" }, { status: 202, headers: { "Retry-After": "5" } });
     }
     return NextResponse.json(lookup.series);
   } catch (error) {
-    if (error instanceof TvmazeError && error.status === 404) {
+    if (error instanceof TmdbError && error.status === 404) {
       return NextResponse.json({ error: "Dizi bulunamadı." }, { status: 404 });
     }
     console.error("Dizi yüklenemedi:", error);

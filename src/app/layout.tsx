@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -27,9 +28,10 @@ export default function RootLayout({
   return (
     // Dark only for now; the theme switch comes in Faz 6
     <html lang="tr" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen">
+      <body className="flex min-h-screen flex-col">
         <SiteHeader />
-        <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-12">{children}</main>
+        <SiteFooter />
         <Toaster theme="dark" position="bottom-center" />
       </body>
     </html>

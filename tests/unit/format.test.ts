@@ -37,7 +37,8 @@ describe("formatDate", () => {
 
 describe("labels", () => {
   it("translates known statuses and genres, passes unknown ones through", () => {
-    expect(statusLabel("Running")).toBe("Devam ediyor");
+    expect(statusLabel("Returning Series")).toBe("Devam ediyor");
+    expect(statusLabel("Canceled")).toBe("İptal edildi");
     expect(statusLabel("Ended")).toBe("Final yaptı");
     expect(statusLabel("Something new")).toBe("Something new");
     expect(statusLabel(null)).toBeNull();
@@ -47,9 +48,9 @@ describe("labels", () => {
 });
 
 describe("pickRating", () => {
-  it("prefers IMDb, falls back to TVmaze, and labels the source", () => {
+  it("prefers IMDb, falls back to TMDB, and labels the source", () => {
     expect(pickRating(8.7, 9.1)).toEqual({ value: 8.7, source: "IMDb" });
-    expect(pickRating(null, 9.1)).toEqual({ value: 9.1, source: "TVmaze" });
+    expect(pickRating(null, 9.1)).toEqual({ value: 9.1, source: "TMDB" });
     expect(pickRating(0, 9.1)).toEqual({ value: 0, source: "IMDb" });
     expect(pickRating(null, null)).toBeNull();
   });

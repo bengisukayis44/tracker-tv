@@ -64,3 +64,6 @@ next-env.d.ts
 /playwright-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# yerel veritabanı yedekleri (kişisel veri içerir)
+/backups/

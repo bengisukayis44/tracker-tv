@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Sherlock: 4 seasons, 3 episodes each, ended — a small, stable show. */
-export const SHERLOCK = { id: 335, name: "Sherlock" };
+/** Sherlock (TMDB 19885): 4 seasons of 3 episodes plus specials, ended — a small, stable show. */
+export const SHERLOCK = { id: 19885, name: "Sherlock" };
 
 /** A unique test account per call; e-mails ending in @e2e.test are deleted after the run. */
 export function newTestUser() {

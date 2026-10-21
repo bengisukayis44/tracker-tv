@@ -35,7 +35,12 @@ test.describe("Dizi ve bölüm sayfaları", () => {
     await page.goto(`/series/${SHERLOCK.id}`);
     await expect(page.getByRole("heading", { level: 1, name: SHERLOCK.name })).toBeVisible();
     await expect(page).toHaveTitle(`${SHERLOCK.name} · Tracker.tv`);
+    // Specials have their own tab but are not counted
     await expect(page.getByText("4 sezon · 12 bölüm")).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Sezon seçimi" }).getByRole("link", { name: "Özel bölümler" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "The Movie Database (TMDB)" })).toBeVisible();
     await expect(page.getByTitle(/(IMDb|TVmaze) puanı/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "IMDb'de görüntüle" })).toHaveAttribute(
       "href",
@@ -55,10 +60,10 @@ test.describe("Dizi ve bölüm sayfaları", () => {
 
   test("bölüm sayfası ve sezonlar arası önceki/sonraki gezinme", async ({ page }) => {
     await page.goto(`/series/${SHERLOCK.id}/season/2`);
-    await page.getByRole("link", { name: /A Scandal in Belgravia/ }).click();
+    await page.getByRole("link", { name: /Belgravia'da Bir Skandal/ }).click();
 
     await expect(page).toHaveURL(`/series/${SHERLOCK.id}/season/2/episode/1`);
-    await expect(page.getByRole("heading", { level: 1, name: "A Scandal in Belgravia" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Belgravia'da Bir Skandal" })).toBeVisible();
     await expect(page.getByText("S02E01", { exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
 

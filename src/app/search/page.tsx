@@ -32,14 +32,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const q = params.q?.trim() ?? "";
   const filter: Filter = FILTERS.some((f) => f.value === params.tur) ? (params.tur as Filter) : "hepsi";
 
-  // The current source (TVmaze) has series only, so the movie filter returns nothing yet
+  // Movies are not wired up yet, so the movie filter returns nothing for now
   let results: SearchResult[] = [];
   let partial = false;
   let error = false;
   if (q && filter !== "film") {
     try {
       ({ results, partial } = await searchTitles(q));
-      // TVmaze was too slow: finish the search after the response so the next try has full results
+      // The data source was too slow: finish the search after the response so the next try has full results
       if (partial) after(() => refreshSearchCache(q));
     } catch (err) {
       console.error("Arama başarısız:", err);
@@ -99,7 +99,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <EmptyState
           icon={<Clapperboard />}
           title="Film araması yakında"
-          text="Şu anki veri kaynağımız (TVmaze) yalnızca dizileri içeriyor. Filmler TMDB entegrasyonuyla gelecek."
+          text="Film desteği yakında geliyor; şimdilik yalnızca diziler aranabiliyor."
         />
       ) : error ? (
         <EmptyState
@@ -146,8 +146,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {results.map((r) => (
               <PosterCard
-                key={r.tvmazeId}
-                href={`/series/${r.tvmazeId}`}
+                key={r.tmdbId}
+                href={`/series/${r.tmdbId}`}
                 title={r.name}
                 posterUrl={r.posterUrl}
                 rating={pickRating(r.imdbRating, r.sourceRating)}

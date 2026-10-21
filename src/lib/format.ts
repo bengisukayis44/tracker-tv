@@ -18,11 +18,14 @@ export function episodeCode(season: number, episode: number): string {
   return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
 }
 
+// TMDB series statuses
 const STATUS_LABELS: Record<string, string> = {
-  Running: "Devam ediyor",
+  "Returning Series": "Devam ediyor",
   Ended: "Final yaptı",
-  "To Be Determined": "Belirsiz",
-  "In Development": "Yapım aşamasında",
+  Canceled: "İptal edildi",
+  "In Production": "Yapım aşamasında",
+  Planned: "Planlanıyor",
+  Pilot: "Pilot",
 };
 
 export function statusLabel(status: string | null | undefined): string | null {
@@ -65,11 +68,11 @@ export function genreLabel(genre: string): string {
   return GENRE_LABELS[genre] ?? genre;
 }
 
-export type DisplayRating = { value: number; source: "IMDb" | "TVmaze" };
+export type DisplayRating = { value: number; source: "IMDb" | "TMDB" };
 
-/** IMDb rating when known, otherwise the TVmaze user rating, always labelled with its source. */
+/** IMDb rating when known, otherwise the TMDB user rating, always labelled with its source. */
 export function pickRating(imdbRating: number | null | undefined, sourceRating: number | null | undefined) {
   if (imdbRating != null) return { value: imdbRating, source: "IMDb" } satisfies DisplayRating;
-  if (sourceRating != null) return { value: sourceRating, source: "TVmaze" } satisfies DisplayRating;
+  if (sourceRating != null) return { value: sourceRating, source: "TMDB" } satisfies DisplayRating;
   return null;
 }

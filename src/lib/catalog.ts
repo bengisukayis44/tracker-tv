@@ -2,25 +2,34 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { omdb, OmdbError, isOmdbEnabled } from "@/lib/omdb";
 import { prisma } from "@/lib/prisma";
-import { pickBackdrop, stripHtml, tvmaze, TvmazeError, type TvmazeShow, type TvmazeShowWithEmbeds } from "@/lib/tvmaze";
+import {
+  cleanText,
+  tmdb,
+  TmdbError,
+  tmdbImage,
+  tmdbRating,
+  type TmdbTvSearchItem,
+  type TmdbTvWithSeasons,
+} from "@/lib/tmdb";
 
 /**
  * Content catalog backed by the database (PROJE_PLANI.md §2 "Önbellekleme").
- * The first request for a series fetches it from TVmaze and stores Title/Season/Episode rows;
- * later requests are served from the database until the data is older than its refresh interval.
+ * The first request for a series fetches it from TMDB and stores Title/Season/Episode rows;
+ * later requests are served from the database and refreshed in the background when they get old.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Airing shows get new episodes weekly, so they refresh more often than finished ones
 const REFRESH_INTERVAL_RUNNING_MS = 1 * DAY_MS;
 const REFRESH_INTERVAL_DEFAULT_MS = 7 * DAY_MS;
+const FINISHED_STATUSES = new Set(["Ended", "Canceled"]);
 const EPISODE_BATCH_SIZE = 500;
 // OMDb free keys allow 1,000 requests/day; IMDb ratings change slowly
 const IMDB_REFRESH_INTERVAL_MS = 7 * DAY_MS;
 const OMDB_CONCURRENCY = 4;
 
 export type SearchResult = {
-  tvmazeId: number;
+  tmdbId: number;
   type: "SERIES";
   name: string;
   posterUrl: string | null;
@@ -32,18 +41,18 @@ export type SearchResult = {
   overview: string | null;
 };
 
-function toSearchResult(show: TvmazeShow): SearchResult {
+function toSearchResult(item: TmdbTvSearchItem, genres: Map<number, string>): SearchResult {
   return {
-    tvmazeId: show.id,
+    tmdbId: item.id,
     type: "SERIES",
-    name: show.name,
-    posterUrl: show.image?.medium ?? null,
-    year: show.premiered ? Number(show.premiered.slice(0, 4)) : null,
-    status: show.status ?? null,
-    sourceRating: show.rating?.average ?? null,
+    name: cleanText(item.name) ?? item.name,
+    posterUrl: tmdbImage(item.poster_path, "w342"),
+    year: item.first_air_date ? Number(item.first_air_date.slice(0, 4)) : null,
+    status: null, // not part of TMDB search results
+    sourceRating: tmdbRating(item.vote_average, item.vote_count),
     imdbRating: null,
-    genres: show.genres ?? [],
-    overview: stripHtml(show.summary),
+    genres: item.genre_ids.map((id) => genres.get(id)).filter((g): g is string => Boolean(g)),
+    overview: cleanText(item.overview),
   };
 }
 
@@ -51,7 +60,7 @@ function toSearchResult(show: TvmazeShow): SearchResult {
 
 // Search results are stored in the database (server memory is not shared between Vercel instances)
 const SEARCH_CACHE_TTL_MS = 1 * DAY_MS;
-// TVmaze can take 30-90 s for a query it has not cached yet; the page does not wait that long
+// The page never waits long for the data source; slow searches are finished in the background
 const LIVE_SEARCH_TIMEOUT_MS = 4_000;
 const BACKGROUND_SEARCH_TIMEOUT_MS = 60_000;
 const LOCAL_SEARCH_LIMIT = 20;
@@ -62,27 +71,32 @@ export function normalizeQuery(query: string): string {
 
 export type SearchOutcome = {
   results: SearchResult[];
-  /** True when TVmaze did not answer in time and the results come from what is already stored */
+  /** True when the data source did not answer in time and the results come from what is already stored */
   partial: boolean;
 };
 
 async function fetchAndStoreSearch(query: string, timeoutMs: number, retries: number): Promise<SearchResult[]> {
-  const results = (await tvmaze.searchShows(query, { timeoutMs, retries })).map(toSearchResult);
+  const [items, genres] = await Promise.all([
+    tmdb.searchTv(query, { timeoutMs, retries }),
+    // Genre names are a nice-to-have: search still works without them
+    tmdb.tvGenres({ timeoutMs, retries }).catch(() => new Map<number, string>()),
+  ]);
+  const results = items.map((item) => toSearchResult(item, genres));
   const key = normalizeQuery(query);
   const data = { results: results as unknown as object[], fetchedAt: new Date() };
   await prisma.searchCache.upsert({ where: { query: key }, create: { query: key, ...data }, update: data });
   return results;
 }
 
-/** Series already in our database whose name contains the query (fallback while TVmaze is slow). */
+/** Series already in our database whose name contains the query (fallback while the source is slow). */
 async function searchStoredTitles(query: string): Promise<SearchResult[]> {
   const titles = await prisma.title.findMany({
-    where: { type: "SERIES", tvmazeId: { not: null }, name: { contains: query.trim(), mode: "insensitive" } },
+    where: { type: "SERIES", tmdbId: { not: null }, name: { contains: query.trim(), mode: "insensitive" } },
     orderBy: [{ sourceRating: { sort: "desc", nulls: "last" } }, { name: "asc" }],
     take: LOCAL_SEARCH_LIMIT,
   });
   return titles.map((t) => ({
-    tvmazeId: t.tvmazeId!,
+    tmdbId: t.tmdbId!,
     type: "SERIES",
     name: t.name,
     posterUrl: t.posterUrl,
@@ -98,16 +112,16 @@ async function searchStoredTitles(query: string): Promise<SearchResult[]> {
 async function withImdbRatings(results: SearchResult[]): Promise<SearchResult[]> {
   if (results.length === 0) return results;
   const cached = await prisma.title.findMany({
-    where: { tvmazeId: { in: results.map((r) => r.tvmazeId) }, imdbRating: { not: null } },
-    select: { tvmazeId: true, imdbRating: true },
+    where: { type: "SERIES", tmdbId: { in: results.map((r) => r.tmdbId) }, imdbRating: { not: null } },
+    select: { tmdbId: true, imdbRating: true },
   });
-  const imdbByTvmazeId = new Map(cached.map((t) => [t.tvmazeId, t.imdbRating]));
-  return results.map((r) => ({ ...r, imdbRating: imdbByTvmazeId.get(r.tvmazeId) ?? r.imdbRating ?? null }));
+  const imdbByTmdbId = new Map(cached.map((t) => [t.tmdbId, t.imdbRating]));
+  return results.map((r) => ({ ...r, imdbRating: imdbByTmdbId.get(r.tmdbId) ?? r.imdbRating ?? null }));
 }
 
 /**
- * Searches series: a fresh stored result is returned at once; otherwise TVmaze is asked with a short timeout.
- * If TVmaze is slow or down, stored results (an older cached search, or matching stored series) are returned
+ * Searches series: a fresh stored result is returned at once; otherwise TMDB is asked with a short timeout.
+ * If TMDB is slow or down, stored results (an older cached search, or matching stored series) are returned
  * with `partial: true` — the caller should then run `refreshSearchCache` in the background.
  */
 export async function searchTitles(query: string): Promise<SearchOutcome> {
@@ -123,7 +137,7 @@ export async function searchTitles(query: string): Promise<SearchOutcome> {
       partial: false,
     };
   } catch (error) {
-    console.warn(`TVmaze araması yetişmedi ("${key}"), kayıtlı sonuçlar gösteriliyor:`, error);
+    console.warn(`TMDB araması yetişmedi ("${key}"), kayıtlı sonuçlar gösteriliyor:`, error);
     const fallback = cached ? (cached.results as unknown as SearchResult[]) : await searchStoredTitles(query);
     return { results: await withImdbRatings(fallback), partial: true };
   }
@@ -140,91 +154,125 @@ export async function refreshSearchCache(query: string): Promise<void> {
 
 export function isStale(lastSyncedAt: Date | null, status: string | null, now = Date.now()) {
   if (!lastSyncedAt) return true;
-  const interval = status === "Ended" ? REFRESH_INTERVAL_DEFAULT_MS : REFRESH_INTERVAL_RUNNING_MS;
+  const interval = status && FINISHED_STATUSES.has(status) ? REFRESH_INTERVAL_DEFAULT_MS : REFRESH_INTERVAL_RUNNING_MS;
   return now - lastSyncedAt.getTime() > interval;
 }
 
-async function saveSeries(show: TvmazeShowWithEmbeds) {
+// ---------- Storing a series ----------
+
+/** Average episode length: TMDB's series value if present, otherwise the mean of the episodes' runtimes. */
+export function averageRuntime(show: Pick<TmdbTvWithSeasons, "episode_run_time" | "seasonsWithEpisodes">) {
+  const declared = show.episode_run_time.filter((n) => n > 0);
+  const values = declared.length
+    ? declared
+    : show.seasonsWithEpisodes.flatMap((s) => s.episodes.map((ep) => ep.runtime ?? 0)).filter((n) => n > 0);
+  return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+}
+
+/** TMDB air dates have no time; stored as midnight UTC (timestamp without time zone, Prisma's convention). */
+export function airDateFromTmdb(date: string | null | undefined): string | null {
+  return date ? new Date(`${date}T00:00:00Z`).toISOString() : null;
+}
+
+/**
+ * Stores a TMDB series. Episodes are matched on (season, episode number), so rows that already exist — and
+ * the watch history pointing at them — are kept and updated in place. Episodes the source no longer lists are
+ * removed only if nobody has watched them.
+ * `existingTitleId` updates that title (used when moving a series over from the old data source).
+ */
+async function saveSeries(show: TmdbTvWithSeasons, existingTitleId?: string) {
   const titleData = {
-    imdbId: show.externals?.imdb ?? null,
-    name: show.name,
-    overview: stripHtml(show.summary),
-    posterUrl: show.image?.original ?? show.image?.medium ?? null,
-    backdropUrl: pickBackdrop(show._embedded?.images),
-    sourceRating: show.rating?.average ?? null,
-    runtime: show.averageRuntime ?? show.runtime ?? null,
-    releaseDate: show.premiered ? new Date(show.premiered) : null,
-    status: show.status ?? null,
-    genres: show.genres ?? [],
+    tmdbId: show.id,
+    imdbId: show.external_ids?.imdb_id || null,
+    name: cleanText(show.name) ?? show.name,
+    overview: cleanText(show.overview),
+    posterUrl: tmdbImage(show.poster_path, "w500"),
+    backdropUrl: tmdbImage(show.backdrop_path, "w1280"),
+    sourceRating: tmdbRating(show.vote_average, show.vote_count),
+    runtime: averageRuntime(show),
+    releaseDate: show.first_air_date ? new Date(show.first_air_date) : null,
+    status: show.status || null,
+    genres: show.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
   };
 
+  const existing =
+    (existingTitleId && (await prisma.title.findUnique({ where: { id: existingTitleId }, select: { id: true } }))) ||
+    (await prisma.title.findFirst({ where: { tmdbId: show.id, type: "SERIES" }, select: { id: true } }));
   // lastSyncedAt is only set once seasons and episodes are stored, so a failed sync is retried next time
-  const title = await prisma.title.upsert({
-    where: { tvmazeId: show.id },
-    create: { tvmazeId: show.id, type: "SERIES", ...titleData },
-    update: titleData,
-  });
+  const title = existing
+    ? await prisma.title.update({ where: { id: existing.id }, data: titleData })
+    : await prisma.title.create({ data: { type: "SERIES", ...titleData } });
 
-  // Specials have no episode number and do not fit the (season, episodeNumber) key, so they are skipped
-  const episodes = (show._embedded?.episodes ?? []).filter((ep) => ep.number != null);
-  const seasonInfo = new Map((show._embedded?.seasons ?? []).map((s) => [s.number, s]));
-  const seasonRows = [...new Set(episodes.map((ep) => ep.season))].map((seasonNumber) => {
-    const info = seasonInfo.get(seasonNumber);
-    return {
-      id: randomUUID(),
-      seasonNumber,
-      name: info?.name || null,
-      posterUrl: info?.image?.original ?? info?.image?.medium ?? null,
-    };
-  });
-
-  // Bulk upserts: one statement per batch instead of one round trip per row (long shows have 800+ episodes)
-  const seasons = await prisma.$queryRaw<{ id: string; seasonNumber: number }[]>`
-    INSERT INTO "Season" ("id", "titleId", "seasonNumber", "name", "posterUrl")
-    SELECT x."id", ${title.id}, x."seasonNumber", x."name", x."posterUrl"
-    FROM jsonb_to_recordset(${JSON.stringify(seasonRows)}::jsonb)
-      AS x("id" text, "seasonNumber" int, "name" text, "posterUrl" text)
-    ON CONFLICT ("titleId", "seasonNumber") DO UPDATE
-      SET "name" = EXCLUDED."name", "posterUrl" = EXCLUDED."posterUrl"
-    RETURNING "id", "seasonNumber"`;
-  const seasonIdByNumber = new Map(seasons.map((s) => [s.seasonNumber, s.id]));
-
-  const episodeRows = episodes.map((ep) => ({
+  const seasonsWithEpisodes = show.seasonsWithEpisodes.filter((s) => s.episodes.length > 0);
+  const seasonRows = seasonsWithEpisodes.map((s) => ({
     id: randomUUID(),
-    tvmazeId: ep.id,
-    seasonId: seasonIdByNumber.get(ep.season)!,
-    episodeNumber: ep.number!,
-    name: ep.name,
-    overview: stripHtml(ep.summary),
-    runtime: ep.runtime,
-    sourceRating: ep.rating?.average ?? null,
-    // Stored as UTC in a timestamp-without-time-zone column, matching Prisma's convention
-    airDate: ep.airstamp ? new Date(ep.airstamp).toISOString() : null,
-    stillUrl: ep.image?.original ?? ep.image?.medium ?? null,
+    seasonNumber: s.season_number,
+    name: cleanText(s.name),
+    posterUrl: tmdbImage(s.poster_path, "w342"),
   }));
 
+  // Bulk upserts: one statement per batch instead of one round trip per row (long shows have 800+ episodes)
+  const seasons = seasonRows.length
+    ? await prisma.$queryRaw<{ id: string; seasonNumber: number }[]>`
+        INSERT INTO "Season" ("id", "titleId", "seasonNumber", "name", "posterUrl")
+        SELECT x."id", ${title.id}, x."seasonNumber", x."name", x."posterUrl"
+        FROM jsonb_to_recordset(${JSON.stringify(seasonRows)}::jsonb)
+          AS x("id" text, "seasonNumber" int, "name" text, "posterUrl" text)
+        ON CONFLICT ("titleId", "seasonNumber") DO UPDATE
+          SET "name" = EXCLUDED."name", "posterUrl" = EXCLUDED."posterUrl"
+        RETURNING "id", "seasonNumber"`
+    : [];
+  const seasonIdByNumber = new Map(seasons.map((s) => [s.seasonNumber, s.id]));
+
+  const episodeRows = seasonsWithEpisodes.flatMap((s) =>
+    s.episodes.map((ep) => ({
+      id: randomUUID(),
+      tmdbId: ep.id,
+      seasonId: seasonIdByNumber.get(s.season_number)!,
+      episodeNumber: ep.episode_number,
+      name: cleanText(ep.name) ?? `${ep.episode_number}. Bölüm`,
+      overview: cleanText(ep.overview),
+      runtime: ep.runtime || null,
+      sourceRating: tmdbRating(ep.vote_average, ep.vote_count),
+      airDate: airDateFromTmdb(ep.air_date),
+      stillUrl: tmdbImage(ep.still_path, "w780"),
+    })),
+  );
+
+  const keptIds: string[] = [];
   for (let i = 0; i < episodeRows.length; i += EPISODE_BATCH_SIZE) {
     const batch = episodeRows.slice(i, i + EPISODE_BATCH_SIZE);
-    await prisma.$executeRaw`
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
       INSERT INTO "Episode"
-        ("id", "tvmazeId", "seasonId", "episodeNumber", "name", "overview", "runtime", "sourceRating", "airDate", "stillUrl")
-      SELECT x."id", x."tvmazeId", x."seasonId", x."episodeNumber", x."name", x."overview", x."runtime",
+        ("id", "tmdbId", "seasonId", "episodeNumber", "name", "overview", "runtime", "sourceRating", "airDate", "stillUrl")
+      SELECT x."id", x."tmdbId", x."seasonId", x."episodeNumber", x."name", x."overview", x."runtime",
              x."sourceRating", x."airDate", x."stillUrl"
       FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x(
-        "id" text, "tvmazeId" int, "seasonId" text, "episodeNumber" int, "name" text, "overview" text,
+        "id" text, "tmdbId" int, "seasonId" text, "episodeNumber" int, "name" text, "overview" text,
         "runtime" int, "sourceRating" double precision, "airDate" timestamp(3), "stillUrl" text)
-      ON CONFLICT ("tvmazeId") DO UPDATE SET
-        "seasonId" = EXCLUDED."seasonId",
-        "episodeNumber" = EXCLUDED."episodeNumber",
+      ON CONFLICT ("seasonId", "episodeNumber") DO UPDATE SET
+        "tmdbId" = EXCLUDED."tmdbId",
         "name" = EXCLUDED."name",
         "overview" = EXCLUDED."overview",
         "runtime" = EXCLUDED."runtime",
         "sourceRating" = EXCLUDED."sourceRating",
         "airDate" = EXCLUDED."airDate",
-        "stillUrl" = EXCLUDED."stillUrl"`;
+        "stillUrl" = EXCLUDED."stillUrl"
+      RETURNING "id"`;
+    keptIds.push(...rows.map((r) => r.id));
   }
 
+  // Drop episodes the source no longer lists, unless someone has watched them
+  await prisma.$executeRaw`
+    DELETE FROM "Episode" AS e
+    USING "Season" AS s
+    WHERE e."seasonId" = s."id"
+      AND s."titleId" = ${title.id}
+      AND NOT (e."id" = ANY(${keptIds}::text[]))
+      AND NOT EXISTS (SELECT 1 FROM "WatchedEpisode" AS w WHERE w."episodeId" = e."id")`;
+
   await prisma.title.update({ where: { id: title.id }, data: { lastSyncedAt: new Date() } });
+  return title.id;
 }
 
 const seriesInclude = {
@@ -234,12 +282,12 @@ const seriesInclude = {
   },
 } as const;
 
-// A first visit waits this long for TVmaze; slower answers are finished in the background
+// A first visit waits this long for the data source; slower answers are finished in the background
 const FIRST_LOAD_TIMEOUT_MS = 10_000;
 const BACKGROUND_LOAD_TIMEOUT_MS = 60_000;
 
-function findStoredSeries(tvmazeId: number) {
-  return prisma.title.findUnique({ where: { tvmazeId }, include: seriesInclude });
+function findStoredSeries(tmdbId: number) {
+  return prisma.title.findFirst({ where: { tmdbId, type: "SERIES" }, include: seriesInclude });
 }
 
 export type Series = NonNullable<Awaited<ReturnType<typeof findStoredSeries>>>;
@@ -247,41 +295,71 @@ export type Series = NonNullable<Awaited<ReturnType<typeof findStoredSeries>>>;
 export type SeriesLookup =
   /** `stale`: shown as is; the caller should run refreshSeries in the background */
   | { status: "ready"; series: Series; stale: boolean }
-  /** Not stored yet and TVmaze did not answer in time; refreshSeries will finish it */
+  /** Not stored yet and TMDB did not answer in time; refreshSeries will finish it */
   | { status: "preparing" };
 
 /**
  * Stale-while-revalidate: a stored series is always returned at once (flagged when it is due a refresh), so
- * visitors never wait for TVmaze. Only a series nobody has opened yet is fetched while the visitor waits,
- * for at most FIRST_LOAD_TIMEOUT_MS. Unknown TVmaze ids throw a TvmazeError with status 404.
+ * visitors never wait for the data source. Only a series nobody has opened yet is fetched while the visitor
+ * waits, for at most FIRST_LOAD_TIMEOUT_MS. Unknown TMDB ids throw a TmdbError with status 404.
  */
-export async function lookupSeries(tvmazeId: number): Promise<SeriesLookup> {
-  const stored = await findStoredSeries(tvmazeId);
+export async function lookupSeries(tmdbId: number): Promise<SeriesLookup> {
+  const stored = await findStoredSeries(tmdbId);
   if (stored) return { status: "ready", series: stored, stale: isStale(stored.lastSyncedAt, stored.status) };
 
   try {
-    await saveSeries(await tvmaze.getShowWithEpisodes(tvmazeId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));
+    await saveSeries(await tmdb.getTvWithSeasons(tmdbId, { timeoutMs: FIRST_LOAD_TIMEOUT_MS, retries: 0 }));
   } catch (error) {
-    if (error instanceof TvmazeError && error.status === 404) throw error;
-    console.warn(`TVmaze dizi isteği yetişmedi (tvmazeId=${tvmazeId}), arka planda devam edilecek:`, error);
+    if (error instanceof TmdbError && error.status === 404) throw error;
+    console.warn(`TMDB dizi isteği yetişmedi (tmdbId=${tmdbId}), arka planda devam edilecek:`, error);
     return { status: "preparing" };
   }
-  return { status: "ready", series: (await findStoredSeries(tvmazeId))!, stale: false };
+  return { status: "ready", series: (await findStoredSeries(tmdbId))!, stale: false };
 }
 
 const seriesRefreshInFlight = new Set<number>();
 
-/** Fetches a series from TVmaze (waiting up to a minute) and stores it. Meant for after(); never throws. */
-export async function refreshSeries(tvmazeId: number): Promise<void> {
-  if (seriesRefreshInFlight.has(tvmazeId)) return;
-  seriesRefreshInFlight.add(tvmazeId);
+/** Fetches a series from TMDB (waiting up to a minute) and stores it. Meant for after(); never throws. */
+export async function refreshSeries(tmdbId: number): Promise<void> {
+  if (seriesRefreshInFlight.has(tmdbId)) return;
+  seriesRefreshInFlight.add(tmdbId);
   try {
-    await saveSeries(await tvmaze.getShowWithEpisodes(tvmazeId, { timeoutMs: BACKGROUND_LOAD_TIMEOUT_MS, retries: 1 }));
+    await saveSeries(await tmdb.getTvWithSeasons(tmdbId, { timeoutMs: BACKGROUND_LOAD_TIMEOUT_MS, retries: 1 }));
   } catch (error) {
-    console.error(`Dizi arka planda güncellenemedi (tvmazeId=${tvmazeId}):`, error);
+    console.error(`Dizi arka planda güncellenemedi (tmdbId=${tmdbId}):`, error);
   } finally {
-    seriesRefreshInFlight.delete(tvmazeId);
+    seriesRefreshInFlight.delete(tmdbId);
   }
+}
+
+/**
+ * Moves a series stored from the old data source (TVmaze) over to TMDB, keeping its rows and watch history.
+ * Used by scripts/migrate-to-tmdb.ts. Returns the TMDB id, or null if no match was found.
+ */
+export async function moveSeriesToTmdb(title: {
+  id: string;
+  name: string;
+  imdbId: string | null;
+  releaseDate: Date | null;
+}): Promise<number | null> {
+  let tmdbId = title.imdbId ? await tmdb.findTvByImdbId(title.imdbId) : null;
+  if (!tmdbId) {
+    // No IMDb id: same name and first-air year
+    const year = title.releaseDate?.getUTCFullYear();
+    const candidates = await tmdb.searchTv(title.name);
+    tmdbId =
+      candidates.find(
+        (c) =>
+          c.name.toLocaleLowerCase("tr-TR") === title.name.toLocaleLowerCase("tr-TR") &&
+          (!year || c.first_air_date?.startsWith(String(year))),
+      )?.id ?? null;
+  }
+  if (!tmdbId) return null;
+  await saveSeries(
+    await tmdb.getTvWithSeasons(tmdbId, { timeoutMs: BACKGROUND_LOAD_TIMEOUT_MS, retries: 2 }),
+    title.id,
+  );
+  return tmdbId;
 }
 
 // ---------- IMDb ratings (OMDb) ----------

@@ -19,6 +19,11 @@ describe("isStale", () => {
     expect(isStale(daysAgo(1.1), "Running", now)).toBe(true);
   });
 
+  it("refreshes cancelled shows weekly, like ended ones", () => {
+    expect(isStale(daysAgo(3), "Canceled", now)).toBe(false);
+    expect(isStale(daysAgo(3), "Returning Series", now)).toBe(true);
+  });
+
   it("refreshes ended shows weekly", () => {
     expect(isStale(daysAgo(3), "Ended", now)).toBe(false);
     expect(isStale(daysAgo(8), "Ended", now)).toBe(true);

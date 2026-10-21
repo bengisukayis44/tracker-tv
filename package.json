@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate:tmdb": "NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-to-tmdb.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -50,6 +51,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.28",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   },
