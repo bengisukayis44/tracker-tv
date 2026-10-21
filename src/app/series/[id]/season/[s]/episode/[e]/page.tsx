@@ -3,9 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { CommentSection } from "@/components/comments/comment-section";
 import { RatingBadge } from "@/components/rating-badge";
 import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
+import { getComments } from "@/lib/comment-data";
 import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
 import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
@@ -38,7 +40,11 @@ export default async function EpisodePage({ params }: Props) {
   if (!loaded) return <TitlePreparing />;
   const { id, series, season, episode, previous, next } = loaded;
   const aired = isAired(episode);
-  const watch = user ? await getEpisodeWatch(user.id, episode.id) : null;
+  const commentTarget = { kind: "episode", episodeId: episode.id } as const;
+  const [watch, comments] = await Promise.all([
+    user ? getEpisodeWatch(user.id, episode.id) : null,
+    getComments(commentTarget, user?.id ?? null),
+  ]);
   const seasonLabel = season.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${season.seasonNumber}`;
 
   return (
@@ -119,6 +125,13 @@ export default async function EpisodePage({ params }: Props) {
         )}
         {next && <NeighborLink id={id} target={next} direction="next" />}
       </nav>
+
+      <CommentSection
+        target={commentTarget}
+        comments={comments}
+        signedIn={user !== null}
+        spoilersRevealed={watch !== null}
+      />
     </article>
   );
 }

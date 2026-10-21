@@ -32,11 +32,11 @@ async function createAccount(): Promise<TestAccount> {
 }
 
 /** Removes everything the account has tracked, so each test starts clean. */
-async function resetAccount(account: TestAccount) {
+export async function resetAccount(account: TestAccount) {
   const db = new Client({ connectionString: process.env.DIRECT_URL });
   await db.connect();
   try {
-    for (const table of ["WatchedEpisode", "WatchedMovie", "Favorite", "WatchlistItem"]) {
+    for (const table of ["WatchedEpisode", "WatchedMovie", "Favorite", "WatchlistItem", "CommentLike", "Comment"]) {
       await db.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [account.id]);
     }
   } finally {

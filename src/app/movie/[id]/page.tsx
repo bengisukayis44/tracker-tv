@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CommentSection } from "@/components/comments/comment-section";
 import { TitleHero } from "@/components/title-hero";
 import { TitlePreparing } from "@/components/title-preparing";
 import { TitleActions } from "@/components/watch/title-actions";
@@ -6,6 +7,7 @@ import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
 import { isAired } from "@/lib/episodes";
 import { formatDate, formatRuntime, pickRating, statusLabel } from "@/lib/format";
+import { getComments } from "@/lib/comment-data";
 import { getMovieWatch, getTitleViewerState } from "@/lib/viewer";
 import { loadMovie } from "./data";
 
@@ -23,9 +25,11 @@ export default async function MoviePage({ params }: Props) {
   const [movie, user] = await Promise.all([loadMovie(id), getCurrentUser()]);
   if (!movie) return <TitlePreparing kind="movie" />;
 
-  const [viewer, watch] = user
-    ? await Promise.all([getTitleViewerState(user.id, movie.id), getMovieWatch(user.id, movie.id)])
-    : [null, null];
+  const commentTarget = { kind: "movie", titleId: movie.id } as const;
+  const [[viewer, watch], comments] = await Promise.all([
+    user ? Promise.all([getTitleViewerState(user.id, movie.id), getMovieWatch(user.id, movie.id)]) : [null, null],
+    getComments(commentTarget, user?.id ?? null),
+  ]);
   const released = isAired({ airDate: movie.releaseDate });
 
   return (
@@ -54,12 +58,18 @@ export default async function MoviePage({ params }: Props) {
         />
       </TitleHero>
 
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-8">
         <WatchPanel
           target={{ kind: "movie", titleId: movie.id }}
           aired={released}
           signedIn={user !== null}
           watch={watch}
+        />
+        <CommentSection
+          target={commentTarget}
+          comments={comments}
+          signedIn={user !== null}
+          spoilersRevealed={watch !== null}
         />
       </div>
     </div>

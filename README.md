@@ -1,7 +1,7 @@
 # Tracker.tv — Dizi & Film Takip
 
 İzlediğin dizi ve filmleri takip ettiğin, bölümleri puanlayıp yorumladığın web uygulaması.
-Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**.
+Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**, **Faz 4 (yorumlar)**.
 
 ## İzleme takibi (Faz 3)
 
@@ -12,6 +12,17 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Dizi sayfasında ilerleme çubuğu ("5/12 bölüm izlendi"), **Favorilere ekle** ve **Daha sonra izle**.
   Diziden bir bölüm izlenince dizi "Daha sonra izle" listesinden otomatik çıkar (favoriler kalır).
 - Giriş yapmamış ziyaretçi bu düğmelere basınca giriş sayfasına, girişten sonra aynı sayfaya döner.
+
+## Yorumlar (Faz 4)
+
+- Bölüm ve film sayfalarının altında. Giriş yapan herkes yazabilir; yazar kendi yorumunu düzenleyip silebilir
+  (silmeden önce onay sorulur), düzenlenen yorumda "(düzenlendi)" yazar.
+- **Spoiler içerir** işaretli yorumların metni gizli gelir, "Spoiler'ı göster" ile açılır. O bölümü/filmi
+  izlemiş olarak işaretleyen kullanıcıya ve yazarın kendisine spoiler'lar doğrudan açık gösterilir.
+- Başkalarının yorumları beğenilir (kendi yorumun beğenilemez). Sıralama: **En yeni** / **En beğenilen**
+  (tarayıcıda yapılır, sayfa yenilenmez).
+- Yetki kuralları sunucuda (`src/app/actions/comments.ts`) kontrol edilir ve birim testleriyle doğrulanır.
+- Kullanıcı adı henüz profil sayfasına bağlı değil; profil sayfası Faz 5'te eklenecek.
 
 ## Filmler
 
@@ -79,6 +90,7 @@ uçtan uca testler gizli anahtar gerektirdiği için şimdilik yalnızca yerelde
 | `src/app/(auth)/` | Giriş / kayıt sayfaları ve server action'lar |
 | `src/lib/tmdb.ts`, `src/lib/omdb.ts` | Dış API istemcileri |
 | `src/lib/catalog.ts` | İçerik katmanı: TMDB ve OMDb verisini veritabanına önbellekler |
+| `src/app/actions/`, `src/components/comments/` | İzleme ve yorum işlemleri, yorum arayüzü |
 | `tests/unit/`, `tests/e2e/` | Birim ve uçtan uca testler |
 | `legacy-vite/` | Eski Vite + localStorage sürümü (referans için) |
 
