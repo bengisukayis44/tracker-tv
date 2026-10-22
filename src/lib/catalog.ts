@@ -1,6 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { unstable_cache } from "next/cache";
 import { castFromAggregate, castFromCredits } from "@/lib/cast";
+import { providersFromTmdb } from "@/lib/providers";
 import { omdb, OmdbError, isOmdbEnabled } from "@/lib/omdb";
 import { prisma } from "@/lib/prisma";
 import {
@@ -218,9 +220,14 @@ export function isStale(lastSyncedAt: Date | null, status: string | null, now = 
   return now - lastSyncedAt.getTime() > interval;
 }
 
-/** Due a refresh, or stored before the cast was fetched with titles. */
-function needsRefresh(title: { lastSyncedAt: Date | null; status: string | null; castMembers: unknown }) {
-  return isStale(title.lastSyncedAt, title.status) || title.castMembers === null;
+/** Due a refresh, or stored before the cast and where-to-watch data were fetched with titles. */
+function needsRefresh(title: {
+  lastSyncedAt: Date | null;
+  status: string | null;
+  castMembers: unknown;
+  watchProviders: unknown;
+}) {
+  return isStale(title.lastSyncedAt, title.status) || title.castMembers === null || title.watchProviders === null;
 }
 
 // ---------- Storing a series ----------
@@ -259,6 +266,7 @@ async function saveSeries(show: TmdbTvWithSeasons, existingTitleId?: string) {
     status: show.status || null,
     genres: show.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
     castMembers: castFromAggregate(show.aggregate_credits?.cast ?? []),
+    watchProviders: providersFromTmdb(show["watch/providers"]),
   };
 
   const existing =
@@ -414,6 +422,7 @@ async function saveMovie(movie: TmdbMovieDetails) {
     status: movie.status || null,
     genres: movie.genres.map((g) => cleanText(g.name)).filter((g): g is string => Boolean(g)),
     castMembers: castFromCredits(movie.credits?.cast ?? []),
+    watchProviders: providersFromTmdb(movie["watch/providers"]),
     lastSyncedAt: new Date(),
   };
   const existing = await prisma.title.findFirst({ where: { tmdbId: movie.id, type: "MOVIE" }, select: { id: true } });
@@ -556,5 +565,46 @@ export async function syncImdbRatings(titleId: string): Promise<void> {
     }
   } finally {
     imdbSyncInFlight.delete(titleId);
+  }
+}
+
+// ---------- Discover (home page) ----------
+
+const DISCOVER_TIMEOUT_MS = 4_000;
+const DISCOVER_LIMIT = 12;
+// TMDB's weekly lists change slowly; one fetch serves every visitor for a few hours
+const DISCOVER_REVALIDATE_SECONDS = 6 * 60 * 60;
+
+async function fetchDiscoverLists() {
+  const options = { timeoutMs: DISCOVER_TIMEOUT_MS, retries: 0 };
+  const noGenres = () => new Map<number, string>();
+  const [series, movies, inCinemas, tvGenres, movieGenres] = await Promise.all([
+    tmdb.trending("tv", options),
+    tmdb.trending("movie", options),
+    tmdb.nowPlaying(options),
+    tmdb.tvGenres(options).catch(noGenres),
+    tmdb.movieGenres(options).catch(noGenres),
+  ]);
+  return {
+    popularSeries: series.slice(0, DISCOVER_LIMIT).map((item) => toSearchResult(item, tvGenres)),
+    popularMovies: movies.slice(0, DISCOVER_LIMIT).map((item) => movieSearchResult(item, movieGenres)),
+    inCinemas: inCinemas.slice(0, DISCOVER_LIMIT).map((item) => movieSearchResult(item, movieGenres)),
+  };
+}
+
+// A failed fetch throws, so it is not cached and the next visit tries again
+const cachedDiscoverLists = unstable_cache(fetchDiscoverLists, ["discover-lists-v1"], {
+  revalidate: DISCOVER_REVALIDATE_SECONDS,
+});
+
+export type DiscoverLists = Awaited<ReturnType<typeof fetchDiscoverLists>>;
+
+/** "Bu hafta popüler diziler / filmler" and "Vizyonda". Empty lists when TMDB is slow or down. */
+export async function getDiscoverLists(): Promise<DiscoverLists> {
+  try {
+    return await cachedDiscoverLists();
+  } catch (error) {
+    console.warn("Keşfet listeleri alınamadı:", error);
+    return { popularSeries: [], popularMovies: [], inCinemas: [] };
   }
 }

@@ -4,7 +4,9 @@ import { CastList } from "@/components/cast-list";
 import { EmptyState } from "@/components/empty-state";
 import { EpisodeRow } from "@/components/episode-row";
 import { TitleHero } from "@/components/title-hero";
+import { WatchProviders } from "@/components/watch-providers";
 import { parseCast } from "@/lib/cast";
+import { parseProviders } from "@/lib/providers";
 import { isAired, sortSeasons } from "@/lib/episodes";
 import { formatRuntime, pickRating, statusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -101,6 +103,8 @@ export function SeriesView({
           </div>
         )}
       </TitleHero>
+
+      <WatchProviders providers={parseProviders(series.watchProviders)} />
 
       <CastList cast={parseCast(series.castMembers)} />
 

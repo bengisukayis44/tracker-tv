@@ -4,11 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { CommentSection } from "@/components/comments/comment-section";
+import { CommunityStats } from "@/components/community-stats";
 import { RatingBadge } from "@/components/rating-badge";
 import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
 import { parseCast } from "@/lib/cast";
 import { getComments } from "@/lib/comment-data";
+import { getCommunityStats } from "@/lib/community-data";
 import { getEpisodeWatch } from "@/lib/viewer";
 import { findEpisodeWithNeighbors, isAired, type EpisodeRef } from "@/lib/episodes";
 import { episodeCode, formatDate, formatRuntime, pickRating } from "@/lib/format";
@@ -42,10 +44,12 @@ export default async function EpisodePage({ params }: Props) {
   const { id, series, season, episode, previous, next } = loaded;
   const aired = isAired(episode);
   const commentTarget = { kind: "episode", episodeId: episode.id } as const;
-  const [watch, comments] = await Promise.all([
+  const [watch, comments, community] = await Promise.all([
     user ? getEpisodeWatch(user.id, episode.id) : null,
     getComments(commentTarget, user?.id ?? null),
+    getCommunityStats(commentTarget),
   ]);
+  const cast = parseCast(series.castMembers);
   const seasonLabel = season.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${season.seasonNumber}`;
 
   return (
@@ -92,8 +96,10 @@ export default async function EpisodePage({ params }: Props) {
         aired={aired}
         signedIn={user !== null}
         watch={watch}
-        cast={parseCast(series.castMembers)}
+        cast={cast}
       />
+
+      <CommunityStats stats={community} cast={cast} />
 
       <div className="bg-muted relative aspect-video overflow-hidden rounded-2xl border">
         {episode.stillUrl ? (

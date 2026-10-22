@@ -214,6 +214,13 @@ test.describe("İzleme takibi", () => {
       timeZone: "Europe/Istanbul",
     }).format(new Date());
     await expect(panel.getByText(`İzlenme tarihi: ${today}`)).toBeVisible();
+
+    // Everyone's watches add up in "Topluluk" (other test runs may watch it too, so only presence is checked)
+    const community = page.getByRole("region", { name: "Topluluk" });
+    await expect(community.getByText(/\d+ kişi izledi/)).toBeVisible();
+    await expect(community.getByText("Ortalama puan")).toBeVisible();
+    await expect(community.getByRole("list", { name: "Topluluğun duyguları" })).toContainText("Heyecanlı");
+    await expect(community.getByRole("list", { name: "En sevilen karakterler" })).toContainText("Dom Cobb");
     await expect(panel.getByRole("list", { name: "Seçtiğin duygular" })).toHaveText("🤩Heyecanlı");
     await expect(panel.getByText("Rüya içinde rüya.")).toBeVisible();
     await expect(panel.getByText("Dom Cobb")).toBeVisible();

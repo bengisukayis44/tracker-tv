@@ -1,6 +1,23 @@
 import { expect, test } from "@playwright/test";
 import { expectNoHorizontalScroll, INCEPTION, SHERLOCK } from "./helpers";
 
+test.describe("Ana sayfa", () => {
+  test("ziyaretçi keşfet listelerini görür", async ({ page }) => {
+    await page.goto("/");
+    const series = page.getByRole("region", { name: "Bu hafta popüler diziler" });
+    await expect(series.locator('a[href^="/series/"]').first()).toBeVisible();
+    const movies = page.getByRole("region", { name: "Bu hafta popüler filmler" });
+    await expect(movies.locator('a[href^="/movie/"]').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+
+    // A popular series opens its page
+    const first = series.locator('a[href^="/series/"]').first();
+    const href = await first.getAttribute("href");
+    await first.click();
+    await expect(page).toHaveURL(href!);
+  });
+});
+
 test.describe("Arama", () => {
   test("ana sayfadan arama yapılır ve sonuçtan diziye gidilir", async ({ page }) => {
     await page.goto("/");
@@ -39,6 +56,9 @@ test.describe("Arama", () => {
     await expect(page.getByRole("heading", { name: "Bu filmi izledin mi?" })).toBeVisible();
     const cast = page.getByRole("region", { name: "Oyuncular" });
     await expect(cast.getByText("Leonardo DiCaprio")).toBeVisible();
+    // Where to watch in Turkey (which platforms changes over time), with JustWatch credited
+    const providers = page.getByRole("region", { name: "Nerede izlenir" });
+    await expect(providers.getByText("Türkiye için platform bilgileri JustWatch tarafından sağlanır.")).toBeVisible();
     await expect(cast.getByText("Dom Cobb", { exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
   });

@@ -1,4 +1,5 @@
 import type { TmdbAggregateCast, TmdbMovieCast } from "@/lib/cast";
+import type { TmdbWatchProvidersResponse } from "@/lib/providers";
 
 /**
  * TMDB API client (https://developer.themoviedb.org) — series (and later movies) data, in Turkish where available.
@@ -19,6 +20,7 @@ const DEFAULT_OPTIONS: Required<TmdbRequestOptions> = { timeoutMs: 15_000, retri
 
 export type TmdbTvSearchItem = {
   id: number;
+  adult?: boolean;
   name: string;
   overview: string;
   poster_path: string | null;
@@ -64,10 +66,12 @@ export type TmdbTvDetails = {
   external_ids?: { imdb_id: string | null; tvdb_id: number | null };
   translations?: { translations: { iso_639_1: string; data: { overview?: string; name?: string } }[] };
   aggregate_credits?: { cast: TmdbAggregateCast[] };
+  "watch/providers"?: TmdbWatchProvidersResponse;
 };
 
 export type TmdbMovieSearchItem = {
   id: number;
+  adult?: boolean;
   title: string;
   overview: string;
   poster_path: string | null;
@@ -98,6 +102,7 @@ export type TmdbMovieDetails = {
   imdb_id: string | null;
   translations?: { translations: { iso_639_1: string; data: { overview?: string; title?: string } }[] };
   credits?: { cast: TmdbMovieCast[] };
+  "watch/providers"?: TmdbWatchProvidersResponse;
 };
 
 /** A series with every season's episodes, Turkish with English fallbacks already applied. */
@@ -193,7 +198,7 @@ export function tmdbRating(voteAverage: number | null | undefined, voteCount: nu
 
 export function tmdbImage(
   path: string | null | undefined,
-  size: "w185" | "w342" | "w500" | "w780" | "w1280" | "original",
+  size: "w92" | "w185" | "w342" | "w500" | "w780" | "w1280" | "original",
 ) {
   return path ? `${IMAGE_BASE_URL}/${size}${path}` : null;
 }
@@ -258,6 +263,29 @@ export const tmdb = {
     );
   },
 
+  /** This week's most popular series or movies worldwide (adult titles left out). */
+  async trending<K extends "tv" | "movie">(
+    kind: K,
+    options?: TmdbRequestOptions,
+  ): Promise<(K extends "tv" ? TmdbTvSearchItem : TmdbMovieSearchItem)[]> {
+    const data = await tmdbFetch<{ results: (K extends "tv" ? TmdbTvSearchItem : TmdbMovieSearchItem)[] }>(
+      `/trending/${kind}/week`,
+      { language: LANGUAGE },
+      options,
+    );
+    return data.results.filter((r) => !r.adult);
+  },
+
+  /** Movies in Turkish cinemas now. */
+  async nowPlaying(options?: TmdbRequestOptions): Promise<TmdbMovieSearchItem[]> {
+    const data = await tmdbFetch<{ results: TmdbMovieSearchItem[] }>(
+      "/movie/now_playing",
+      { language: LANGUAGE, region: "TR", page: "1" },
+      options,
+    );
+    return data.results.filter((r) => !r.adult);
+  },
+
   /** Genre id → Turkish name, fetched once per server instance. */
   tvGenres(options?: TmdbRequestOptions): Promise<Map<number, string>> {
     tvGenresCache ??= loadGenres("tv", options).catch((error) => {
@@ -279,7 +307,7 @@ export const tmdb = {
   async getMovie(id: number, options?: TmdbRequestOptions): Promise<TmdbMovieDetails> {
     const movie = await tmdbFetch<TmdbMovieDetails>(
       `/movie/${id}`,
-      { language: LANGUAGE, append_to_response: "translations,credits" },
+      { language: LANGUAGE, append_to_response: "translations,credits,watch/providers" },
       options,
     );
     const englishOverview = movie.translations?.translations.find((t) => t.iso_639_1 === "en")?.data.overview;
@@ -300,7 +328,7 @@ export const tmdb = {
   async getTvWithSeasons(id: number, options?: TmdbRequestOptions): Promise<TmdbTvWithSeasons> {
     const details = await tmdbFetch<TmdbTvDetails>(
       `/tv/${id}`,
-      { language: LANGUAGE, append_to_response: "external_ids,translations,aggregate_credits" },
+      { language: LANGUAGE, append_to_response: "external_ids,translations,aggregate_credits,watch/providers" },
       options,
     );
 

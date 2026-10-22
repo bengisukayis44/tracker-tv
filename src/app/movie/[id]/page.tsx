@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import { CastList } from "@/components/cast-list";
 import { CommentSection } from "@/components/comments/comment-section";
+import { CommunityStats } from "@/components/community-stats";
 import { TitleHero } from "@/components/title-hero";
+import { WatchProviders } from "@/components/watch-providers";
 import { TitlePreparing } from "@/components/title-preparing";
 import { TitleActions } from "@/components/watch/title-actions";
 import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
 import { parseCast } from "@/lib/cast";
+import { parseProviders } from "@/lib/providers";
 import { isAired } from "@/lib/episodes";
 import { formatDate, formatRuntime, pickRating, statusLabel } from "@/lib/format";
 import { getComments } from "@/lib/comment-data";
+import { getCommunityStats } from "@/lib/community-data";
 import { getMovieWatch, getTitleViewerState } from "@/lib/viewer";
 import { loadMovie } from "./data";
 
@@ -28,9 +32,10 @@ export default async function MoviePage({ params }: Props) {
   if (!movie) return <TitlePreparing kind="movie" />;
 
   const commentTarget = { kind: "movie", titleId: movie.id } as const;
-  const [[viewer, watch], comments] = await Promise.all([
+  const [[viewer, watch], comments, community] = await Promise.all([
     user ? Promise.all([getTitleViewerState(user.id, movie.id), getMovieWatch(user.id, movie.id)]) : [null, null],
     getComments(commentTarget, user?.id ?? null),
+    getCommunityStats(commentTarget),
   ]);
   const released = isAired({ airDate: movie.releaseDate });
   const cast = parseCast(movie.castMembers);
@@ -61,6 +66,8 @@ export default async function MoviePage({ params }: Props) {
         />
       </TitleHero>
 
+      <WatchProviders providers={parseProviders(movie.watchProviders)} />
+
       <CastList cast={cast} />
 
       <div className="mx-auto max-w-4xl space-y-8">
@@ -71,6 +78,7 @@ export default async function MoviePage({ params }: Props) {
           watch={watch}
           cast={cast}
         />
+        <CommunityStats stats={community} cast={cast} />
         <CommentSection
           target={commentTarget}
           comments={comments}

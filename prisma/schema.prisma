@@ -55,24 +55,25 @@ model User {
 // ---------- İçerik (dış API önbelleği) ----------
 
 model Title {
-  id           String    @id @default(cuid())
-  tmdbId       Int?
-  tvmazeId     Int?      @unique
-  imdbId       String?
-  type         TitleType
-  name         String
-  overview     String?
-  posterUrl    String?
-  backdropUrl  String?
-  imdbRating   Float?
-  sourceRating Float? // içerik kaynağının (şimdilik TVmaze) kullanıcı puanı, 0-10
-  runtime      Int? // film için dakika; dizide ortalama bölüm süresi
-  releaseDate  DateTime?
-  status       String? // ör. Running / Ended
-  genres       String[]  @default([])
-  lastSyncedAt DateTime?
-  imdbSyncedAt DateTime? // OMDb puanlarının son çekildiği zaman
-  castMembers  Json? // CastMember[] (src/lib/cast.ts): başrol oyuncuları ve karakterleri; null = henüz çekilmedi
+  id             String    @id @default(cuid())
+  tmdbId         Int?
+  tvmazeId       Int?      @unique
+  imdbId         String?
+  type           TitleType
+  name           String
+  overview       String?
+  posterUrl      String?
+  backdropUrl    String?
+  imdbRating     Float?
+  sourceRating   Float? // içerik kaynağının (şimdilik TVmaze) kullanıcı puanı, 0-10
+  runtime        Int? // film için dakika; dizide ortalama bölüm süresi
+  releaseDate    DateTime?
+  status         String? // ör. Running / Ended
+  genres         String[]  @default([])
+  lastSyncedAt   DateTime?
+  imdbSyncedAt   DateTime? // OMDb puanlarının son çekildiği zaman
+  castMembers    Json? // CastMember[] (src/lib/cast.ts): başrol oyuncuları ve karakterleri; null = henüz çekilmedi
+  watchProviders Json? // WatchProviders (src/lib/providers.ts): Türkiye'de nerede izlenir; null = henüz çekilmedi
 
   seasons    Season[]
   comments   Comment[]

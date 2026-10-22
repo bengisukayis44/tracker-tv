@@ -35,6 +35,17 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - İzlenme tarihi: bölüm/film sayfasındaki İzledin kutusunda ve dizi sayfasındaki bölüm satırlarında yazar.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
+## Keşfet, topluluk ve nerede izlenir
+
+- **Ana sayfa (herkese):** "En çok konuşulanlar" (son 30 günde en çok yorum alan bölüm/filmler), TMDB'den
+  "Bu hafta popüler diziler / filmler" ve "Vizyonda" (Türkiye). TMDB listeleri Next.js önbelleğinde 6 saat tutulur;
+  TMDB 4 sn'de yanıt vermezse bu satırlar gizlenir ve sonraki ziyarette tekrar denenir.
+- **Topluluk** (bölüm ve film sayfası): kaç kişinin izlediği, ortalama puan, duyguların izleyenlere oranı ve en sevilen
+  5 karakter. Kişisel notlar okunmaz.
+- **Nerede izlenir** (dizi ve film sayfası): Türkiye'deki platformlar (abonelik, ücretsiz, kiralama, satın alma),
+  TMDB'nin JustWatch verisiyle; `Title.watchProviders` sütununda içerikle birlikte saklanıp yenilenir.
+  JustWatch atfı TMDB şartıdır, kaldırılmamalı.
+
 ## Oyuncular
 
 - Dizi ve film sayfalarında **Oyuncular**: oyuncu fotoğrafı, adı ve oynadığı karakter (en fazla 20 kişi).
@@ -102,7 +113,9 @@ npm test             # birim testleri (Vitest) — saniyeler sürer, ağ gerekti
 npm run test:e2e     # uçtan uca testler (Playwright) — üretim derlemesi alıp 3100 portunda çalıştırır
 ```
 
-Uçtan uca testler gerçek Supabase veritabanını ve TMDB'yi kullanır. Her test işçisi `@e2e.test` ile biten
+Uçtan uca testler gerçek Supabase veritabanını ve TMDB'yi kullanır. Yerel test sunucusu veritabanına session
+pooler (`DIRECT_URL`, 5432) ile bağlanır: yerel makineden transaction pooler (6543) bazen bir sorguyu bir dakika
+bekletiyor (canlıda, Vercel'de bu sorun yok). Her test işçisi `@e2e.test` ile biten
 hesaplarını Supabase Admin API ile bir kez açar (`SUPABASE_SECRET_KEY` gerekir, yalnızca `.env`'de durur),
 her testten önce o hesabın izleme verisini sıfırlar ve tur bitince hesapları siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
 GitHub'da her push'ta lint, tip kontrolü, birim testleri ve derleme otomatik çalışır (`.github/workflows/ci.yml`);

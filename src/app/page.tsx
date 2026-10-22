@@ -1,22 +1,29 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { Discover } from "@/components/discover";
 import { WatchLists } from "@/components/profile/watch-lists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { refreshSeries } from "@/lib/catalog";
+import { getDiscoverLists, refreshSeries } from "@/lib/catalog";
+import { getMostDiscussed } from "@/lib/comment-data";
 import { getContinueWatching, getUpcoming, getWatchlist, staleTrackedSeries } from "@/lib/profile";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const [continueWatching, upcoming, watchlist, stale] = user
-    ? await Promise.all([
-        getContinueWatching(user.id),
-        getUpcoming(user.id),
-        getWatchlist(user.id),
-        staleTrackedSeries(user.id),
-      ])
-    : [[], [], [], []];
+  const [personal, discover, discussed] = await Promise.all([
+    user
+      ? Promise.all([
+          getContinueWatching(user.id),
+          getUpcoming(user.id),
+          getWatchlist(user.id),
+          staleTrackedSeries(user.id),
+        ])
+      : null,
+    getDiscoverLists(),
+    getMostDiscussed(),
+  ]);
+  const stale = personal?.[3] ?? [];
   if (stale.length) after(() => Promise.all(stale.map(refreshSeries)));
 
   return (
@@ -51,7 +58,10 @@ export default async function HomePage() {
         )}
       </section>
 
-      {user && <WatchLists continueWatching={continueWatching} upcoming={upcoming} watchlist={watchlist} limit={6} />}
+      {personal && (
+        <WatchLists continueWatching={personal[0]} upcoming={personal[1]} watchlist={personal[2]} limit={6} />
+      )}
+      <Discover lists={discover} discussed={discussed} />
     </div>
   );
 }

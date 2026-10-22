@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3100;
@@ -35,7 +36,12 @@ export default defineConfig({
     : {
         command: `npx next build && npx next start -p ${PORT}`,
         url: `http://localhost:${PORT}`,
-        env: { NEXT_DIST_DIR: ".next-e2e" },
+        env: {
+          NEXT_DIST_DIR: ".next-e2e",
+          // From a local machine the transaction pooler (6543) sometimes stalls a query for a minute; the session
+          // pooler (5432, also used for migrations) does not. Production (Vercel, next to the database) is unaffected.
+          ...(process.env.DIRECT_URL ? { DATABASE_URL: process.env.DIRECT_URL } : {}),
+        },
         timeout: 300_000,
         reuseExistingServer: !process.env.CI,
       },
