@@ -45,14 +45,15 @@ model User {
   isPrivate Boolean  @default(false) // gizli profil: profil sayfası ve akış yalnızca sahibine açık
   createdAt DateTime @default(now())
 
-  watchedEpisodes WatchedEpisode[]
-  watchedMovies   WatchedMovie[]
-  comments        Comment[]
-  commentLikes    CommentLike[]
-  favorites       Favorite[]
-  watchlist       WatchlistItem[]
-  following       Follow[]         @relation("follower")
-  followers       Follow[]         @relation("following")
+  watchedEpisodes   WatchedEpisode[]
+  watchedMovies     WatchedMovie[]
+  comments          Comment[]
+  commentLikes      CommentLike[]
+  favorites         Favorite[]
+  watchlist         WatchlistItem[]
+  pushSubscriptions PushSubscription[]
+  following         Follow[]           @relation("follower")
+  followers         Follow[]           @relation("following")
 }
 
 // ---------- İçerik (dış API önbelleği) ----------
@@ -189,6 +190,22 @@ model CommentLike {
   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@id([userId, commentId])
+}
+
+// ---------- Bildirimler ----------
+
+// Tarayıcı bildirim aboneliği (Web Push); bir kullanıcının her tarayıcısı ayrı bir satırdır
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ---------- Takip ----------

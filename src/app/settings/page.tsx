@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { NotificationForm } from "./notification-form";
 import { AvatarForm, PrivacyForm, UsernameForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Ayarlar" };
@@ -32,6 +33,9 @@ export default async function SettingsPage() {
       </Card>
       <Card title="Gizlilik">
         <PrivacyForm isPrivate={isPrivate} />
+      </Card>
+      <Card title="Bildirimler">
+        <NotificationForm />
       </Card>
     </div>
   );

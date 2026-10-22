@@ -38,6 +38,20 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   profilde "2 tekrar izleme" yazar; izleme süresine her tekrar yeniden eklenir.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
+## Bildirimler (yeni bölüm)
+
+- Ayarlar → Bildirimler → **Bildirimleri aç**: tarayıcı izni istenir, `public/sw.js` kaydedilir ve Web Push aboneliği
+  `PushSubscription` tablosuna yazılır (her tarayıcı ayrı). "Deneme bildirimi gönder" tüm zinciri dener.
+- **Günlük görev** (`vercel.json` cron, her gün 07:00 UTC = 10:00 TR; Hobby planında o saat içinde herhangi bir an):
+  `/api/cron/new-episodes`, `Authorization: Bearer $CRON_SECRET` ister. Bildirim açık kullanıcıların takip ettiği
+  (izlediği ya da listesindeki) dizilerden eskimiş olanları (en fazla 15) TMDB'den yeniler, bugün yayınlanan bölümler
+  için dizi başına bir bildirim gönderir. `?dryRun=1&userId=…` göndermeden ne gönderileceğini döndürür (testler).
+- Anahtarlar: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` (`.env` ve Vercel'de).
+- iPhone/iPad'de Web Push yalnızca site ana ekrana eklenince çalışır; e-posta bildirimi henüz yok (e-posta servisi
+  bekleniyor).
+- Playwright'ın açtığı tarayıcılar push aboneliği alamadığı için uçtan uca testler aboneliği veritabanına yazar ve
+  görevi kuru çalıştırır; gönderim ve şifreleme yerelde sahte bir push sunucusuyla doğrulandı.
+
 ## Takip ve akış
 
 - Başkasının profilinde **Takip et**; profilde takipçi ve takip sayısı. Gizli profiller takip edilemez.
@@ -95,7 +109,8 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 **https://tracker-tv-seven.vercel.app** — Vercel (Hobby plan), sunucu bölgesi Frankfurt (`vercel.json`, veritabanının yanında).
 Elle yayın: `vercel deploy --prod`. Canlı siteye karşı test: `E2E_BASE_URL=https://tracker-tv-seven.vercel.app npm run test:e2e`.
-Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OMDB_API_KEY`, `TMDB_API_KEY`
+Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OMDB_API_KEY`, `TMDB_API_KEY`,
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`
 (`DIRECT_URL` ve `SUPABASE_SECRET_KEY` canlıda gerekmez, eklenmemeli).
 
 ## Sayfalar

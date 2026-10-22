@@ -1,16 +1,6 @@
-import { Client } from "pg";
+import { withDb } from "./db";
 import { expect, resetAccount, test } from "./fixtures";
 import { INCEPTION, SHERLOCK } from "./helpers";
-
-async function withDb<T>(fn: (db: Client) => Promise<T>) {
-  const db = new Client({ connectionString: process.env.DATABASE_URL });
-  await db.connect();
-  try {
-    return await fn(db);
-  } finally {
-    await db.end();
-  }
-}
 
 /** The other account watches Sherlock season 1 and Inception (rated 8) and comments, straight in the database. */
 async function seedActivity(userId: string, comment: string) {
