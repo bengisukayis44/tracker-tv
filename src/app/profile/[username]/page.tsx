@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Bookmark, Clapperboard, Film, Heart, Lock, MessageSquare, Settings, Tv } from "lucide-react";
@@ -6,6 +7,7 @@ import { SpoilerBlur } from "@/components/comments/spoiler-blur";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
+import { CoverPicker } from "@/components/profile/cover-picker";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
 import { FollowButton } from "@/components/social/follow-button";
 import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
@@ -13,7 +15,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { getFollowState } from "@/lib/social";
+import { coverImageUrl } from "@/lib/cover";
 import { formatWatchTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   getFavorites,
   getProfileUser,
@@ -41,40 +45,68 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const isMe = viewer?.id === user.id;
   const follow = await getFollowState(user.id, viewer?.id ?? null);
 
+  // The cover is part of the profile, so a private one keeps it to its owner
+  const cover = user.coverPath && (isMe || !user.isPrivate) ? coverImageUrl(user.coverPath) : null;
+
   const header = (
-    <header className="flex flex-wrap items-center gap-4">
-      <Avatar className="size-16 text-xl">
-        {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-        <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <h1 className="inline-flex max-w-full items-center gap-2 text-3xl font-extrabold tracking-tight">
-          <span className="truncate">@{user.username}</span>
-          {user.isPrivate && <Lock aria-label="Gizli profil" className="text-muted-foreground size-5 shrink-0" />}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {memberSince.format(user.createdAt)}&apos;den beri üye ·{" "}
-          <span className="text-foreground font-semibold">{follow.followers}</span> takipçi ·{" "}
-          <span className="text-foreground font-semibold">{follow.following}</span> takip
-        </p>
-      </div>
-      {!isMe && !user.isPrivate && (
-        <FollowButton
-          userId={user.id}
-          username={user.username}
-          isFollowing={follow.isFollowing}
-          signedIn={viewer !== null}
-        />
+    <div>
+      {cover ? (
+        <div className="bg-muted relative -mx-4 h-48 overflow-hidden sm:mx-0 sm:h-72 sm:rounded-3xl">
+          <Image
+            src={cover}
+            alt="Profil kapağı"
+            fill
+            priority
+            sizes="(min-width: 1280px) 1232px, 100vw"
+            className="object-cover"
+          />
+          <div className="from-background absolute inset-0 bg-gradient-to-t via-transparent to-transparent" />
+          {isMe && <CoverPicker hasCover className="absolute top-3 right-3" />}
+        </div>
+      ) : (
+        isMe && (
+          <div className="text-muted-foreground -mx-4 flex h-28 items-center justify-center border-y border-dashed sm:mx-0 sm:rounded-3xl sm:border">
+            <CoverPicker hasCover={false} />
+          </div>
+        )
       )}
-      {isMe && (
-        <Button asChild variant="outline">
-          <Link href="/settings">
-            <Settings />
-            Profili düzenle
-          </Link>
-        </Button>
-      )}
-    </header>
+      <header className={cn("relative flex flex-wrap items-center gap-4", cover && "-mt-10 sm:-mt-14 sm:px-6")}>
+        <Avatar className={cn("size-16 text-xl", cover && "ring-background size-20 ring-4 sm:size-24")}>
+          {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+          <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <h1 className="inline-flex max-w-full items-center gap-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+            <span className="truncate">@{user.username}</span>
+            {user.isPrivate && <Lock aria-label="Gizli profil" className="text-muted-foreground size-5 shrink-0" />}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {memberSince.format(user.createdAt)}&apos;den beri üye ·{" "}
+            <span className="text-foreground font-semibold">{follow.followers}</span> takipçi ·{" "}
+            <span className="text-foreground font-semibold">{follow.following}</span> takip
+          </p>
+        </div>
+        {/* On phones the button gets its own line, so the name is not squeezed */}
+        <div className="basis-full sm:basis-auto">
+          {!isMe && !user.isPrivate && (
+            <FollowButton
+              userId={user.id}
+              username={user.username}
+              isFollowing={follow.isFollowing}
+              signedIn={viewer !== null}
+            />
+          )}
+          {isMe && (
+            <Button asChild variant="outline">
+              <Link href="/settings">
+                <Settings />
+                Profili düzenle
+              </Link>
+            </Button>
+          )}
+        </div>
+      </header>
+    </div>
   );
 
   // A private profile shows only who it is to everyone but its owner

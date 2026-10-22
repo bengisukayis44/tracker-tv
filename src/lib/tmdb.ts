@@ -1,4 +1,5 @@
 import type { TmdbAggregateCast, TmdbMovieCast } from "@/lib/cast";
+import type { TmdbBackdrop } from "@/lib/cover";
 import type { TmdbWatchProvidersResponse } from "@/lib/providers";
 
 /**
@@ -284,6 +285,16 @@ export const tmdb = {
       options,
     );
     return data.results.filter((r) => !r.adult);
+  },
+
+  /** Wide images (backdrops) of a series or movie: textless ones and those in English or Turkish. */
+  async backdrops(kind: "tv" | "movie", id: number, options?: TmdbRequestOptions): Promise<TmdbBackdrop[]> {
+    const data = await tmdbFetch<{ backdrops: TmdbBackdrop[] }>(
+      `/${kind}/${id}/images`,
+      { include_image_language: "null,en,tr" },
+      options,
+    );
+    return data.backdrops;
   },
 
   /** Genre id → Turkish name, fetched once per server instance. */
