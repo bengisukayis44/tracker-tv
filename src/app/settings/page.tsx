@@ -38,7 +38,7 @@ export default async function SettingsPage() {
         <div className="space-y-3">
           {coverPath ? (
             <div className="bg-muted relative aspect-[3/1] overflow-hidden rounded-xl border">
-              <Image src={coverImageUrl(coverPath)} alt="Profil kapağın" fill sizes="640px" className="object-cover" />
+              <Image src={coverImageUrl(coverPath)} alt="Profil kapağın" fill unoptimized className="object-cover" />
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">

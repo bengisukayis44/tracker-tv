@@ -5,20 +5,32 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { getCoverImages, getCoverTitles, removeCover, setCover, type CoverTitle } from "@/app/actions/cover";
+import {
+  getCoverImages,
+  getCoverTitles,
+  removeCover,
+  setCover,
+  type CoverTitle,
+  type EpisodeStill,
+} from "@/app/actions/cover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { coverImageUrl } from "@/lib/cover";
+import { COVER_FIRST, COVER_MORE, coverImageUrl } from "@/lib/cover";
 import { cn } from "@/lib/utils";
 
+type Images = { scenes: string[]; stills: EpisodeStill[] };
+type Tab = "scenes" | "stills";
 type Step =
-  { kind: "titles"; titles: CoverTitle[] | null } | { kind: "images"; title: CoverTitle; images: string[] | null };
+  { kind: "titles"; titles: CoverTitle[] | null } | { kind: "images"; title: CoverTitle; images: Images | null };
 
-/** "Kapak ekle": pick one of the series/movies you watched, then one of its scene images. */
+/** "Kapak ekle": pick one of the series/movies you watched, then one of its images or episode stills. */
 export function CoverPicker({ hasCover, className }: { hasCover: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>({ kind: "titles", titles: null });
   const [error, setError] = useState<string>();
+  const [tab, setTab] = useState<Tab>("scenes");
+  // How many of each list are shown; "Daha fazla göster" adds COVER_MORE
+  const [shown, setShown] = useState({ scenes: COVER_FIRST, stills: COVER_FIRST });
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -40,10 +52,14 @@ export function CoverPicker({ hasCover, className }: { hasCover: boolean; classN
   const showImages = (title: CoverTitle) => {
     setError(undefined);
     setStep({ kind: "images", title, images: null });
+    setTab("scenes");
+    setShown({ scenes: COVER_FIRST, stills: COVER_FIRST });
     startTransition(async () => {
       const result = await getCoverImages({ type: title.type, tmdbId: title.tmdbId });
       if (!result.ok) return setError(result.error);
-      setStep({ kind: "images", title, images: result.images });
+      setStep({ kind: "images", title, images: { scenes: result.scenes, stills: result.stills } });
+      // A series with no wide images still has its episode stills
+      if (result.scenes.length === 0 && result.stills.length > 0) setTab("stills");
     });
   };
 
@@ -127,33 +143,111 @@ export function CoverPicker({ hasCover, className }: { hasCover: boolean; classN
             )
           ) : step.images === null ? (
             <Loading />
-          ) : step.images.length === 0 ? (
+          ) : step.images.scenes.length === 0 && step.images.stills.length === 0 ? (
             <p className="text-muted-foreground text-sm">Bu içerik için uygun görsel bulunamadı. Başka birini dene.</p>
           ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {step.images.map((path, i) => (
-                <li key={path}>
-                  <button
-                    type="button"
-                    onClick={() => choose(step.title, path)}
-                    disabled={pending}
-                    aria-label={`${i + 1}. görseli kapak yap`}
-                    className="hover:ring-primary focus-visible:ring-primary relative block aspect-video w-full overflow-hidden rounded-lg border outline-none hover:ring-2 focus-visible:ring-2 disabled:opacity-60"
-                  >
-                    <Image
-                      src={coverImageUrl(path, "w300")}
-                      alt=""
-                      fill
-                      sizes="(min-width: 640px) 360px, 90vw"
-                      className="object-cover"
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ImageGrid
+              title={step.title}
+              images={step.images}
+              tab={tab}
+              onTab={setTab}
+              shown={shown[tab]}
+              onMore={() => setShown((s) => ({ ...s, [tab]: s[tab] + COVER_MORE }))}
+              onChoose={choose}
+              disabled={pending}
+            />
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** "Dizi görselleri" and "Bölüm kareleri" tabs with a growing grid of images. */
+function ImageGrid({
+  title,
+  images,
+  tab,
+  onTab,
+  shown,
+  onMore,
+  onChoose,
+  disabled,
+}: {
+  title: CoverTitle;
+  images: Images;
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  shown: number;
+  onMore: () => void;
+  onChoose: (title: CoverTitle, path: string) => void;
+  disabled: boolean;
+}) {
+  const items =
+    tab === "scenes"
+      ? images.scenes.map((path, i) => ({ path, label: null, name: `${i + 1}. görseli kapak yap` }))
+      : images.stills.map((still) => ({
+          path: still.path,
+          label: still.label,
+          name: `${still.label} karesini kapak yap`,
+        }));
+  const tabs = [
+    { value: "scenes" as const, label: "Dizi görselleri", count: images.scenes.length },
+    { value: "stills" as const, label: "Bölüm kareleri", count: images.stills.length },
+  ].filter((t) => t.count > 0);
+  const remaining = items.length - shown;
+
+  return (
+    <div className="space-y-4">
+      {tabs.length > 1 && (
+        <div role="tablist" aria-label="Görsel türü" className="bg-muted inline-flex rounded-lg p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.value}
+              onClick={() => onTab(t.value)}
+              className={cn(
+                "rounded-md px-3 py-1 text-sm font-semibold transition-colors",
+                tab === t.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label} <span className="text-muted-foreground font-normal">{t.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {items.slice(0, shown).map((item) => (
+          <li key={item.path}>
+            <button
+              type="button"
+              onClick={() => onChoose(title, item.path)}
+              disabled={disabled}
+              aria-label={item.name}
+              className="hover:ring-primary focus-visible:ring-primary relative block aspect-video w-full overflow-hidden rounded-lg border outline-none hover:ring-2 focus-visible:ring-2 disabled:opacity-60"
+            >
+              {/* Straight from TMDB (already small): hundreds of stills would use up Vercel's image quota. Loads when scrolled into view. */}
+              <Image src={coverImageUrl(item.path, "w300")} alt="" fill unoptimized className="object-cover" />
+              {item.label && (
+                <span className="absolute inset-x-0 bottom-0 truncate bg-black/70 px-2 py-1 text-left text-xs font-semibold text-white">
+                  {item.label}
+                </span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {remaining > 0 && (
+        <Button variant="outline" className="w-full" onClick={onMore}>
+          Daha fazla göster ({remaining} görsel daha)
+        </Button>
+      )}
     </div>
   );
 }

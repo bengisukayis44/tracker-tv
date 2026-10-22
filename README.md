@@ -67,8 +67,10 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   bilgiler silinir) ve Supabase Storage'ın herkese açık `avatars` kovasına `<kullanıcı id>/<zaman>.webp` olarak
   yüklenir. Kova kuralları herkesin yalnızca kendi klasörüne yazmasına izin verir (migration `profile_settings`).
 - **Profil kapağı:** profilde (kendi profilinde "Kapak ekle") ya da ayarlarda: önce izlenen diziler/filmler (en son
-  izlenen başta), sonra seçilenin TMDB'deki geniş görsellerinden 10 tanesi (yazısızlar ve en beğenilenler önce)
-  listelenir. Yalnızca görselin TMDB yolu `User.coverPath`'te saklanır; sunucu görselin gerçekten o dizi/filme ait
+  izlenen başta), sonra iki sekme: **Dizi görselleri** (TMDB'deki tüm geniş görseller; yazısızlar ve en beğenilenler
+  önce) ve **Bölüm kareleri** (veritabanındaki her bölümün karesi, izleme sırasıyla). İlk 10 görünür, "Daha fazla
+  göster" her seferinde 20 ekler. Küçük önizlemeler ve kapak doğrudan TMDB'den yüklenir (Vercel'in görsel
+  optimizasyon kotasını harcamamak için). Yalnızca görselin TMDB yolu `User.coverPath`'te saklanır; sunucu görselin gerçekten o dizi/filme ait
   ve kullanıcının izlediği bir içerik olduğunu doğrular. Gizli profilde kapak başkalarına görünmez.
 - **Kullanıcı adı** değiştirilebilir (aynı kurallar, benzersiz); profil adresi ve girişte kullanılan ad değişir.
 - **Gizli profil:** profil sayfası başkalarına yalnızca adı ve "Bu profil gizli" yazısıyla görünür. Bölüm/film

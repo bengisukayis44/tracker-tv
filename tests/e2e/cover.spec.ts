@@ -28,10 +28,19 @@ test.describe("Profil kapağı", () => {
     await expect(dialog.getByRole("heading", { name: "Kapak için bir dizi ya da film seç" })).toBeVisible();
     await dialog.getByRole("button", { name: SHERLOCK.name }).click();
     await expect(dialog.getByRole("heading", { name: SHERLOCK.name })).toBeVisible();
+    // The ten best images first, then more on demand
     const images = dialog.getByRole("button", { name: /\. görseli kapak yap$/ });
-    await expect(images.first()).toBeVisible();
-    expect(await images.count()).toBeGreaterThanOrEqual(5);
-    await images.nth(2).click();
+    await expect(images).toHaveCount(10);
+    const more = dialog.getByRole("button", { name: /^Daha fazla göster/ });
+    const total = 10 + Number((await more.textContent())!.match(/\((\d+) görsel daha\)/)![1]);
+    await more.click();
+    await expect(images).toHaveCount(Math.min(total, 30));
+
+    // Episode stills, one per episode, labelled with the episode
+    await dialog.getByRole("tab", { name: /Bölüm kareleri/ }).click();
+    const still = dialog.getByRole("button", { name: /^S01E01 · .+ karesini kapak yap$/ });
+    await expect(still).toBeVisible();
+    await still.click();
 
     await expect(page.getByText("Profil kapağın güncellendi.")).toBeVisible();
     const cover = page.getByRole("img", { name: "Profil kapağı" });

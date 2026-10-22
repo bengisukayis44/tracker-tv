@@ -52,14 +52,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     <div>
       {cover ? (
         <div className="bg-muted relative -mx-4 h-48 overflow-hidden sm:mx-0 sm:h-72 sm:rounded-3xl">
-          <Image
-            src={cover}
-            alt="Profil kapağı"
-            fill
-            priority
-            sizes="(min-width: 1280px) 1232px, 100vw"
-            className="object-cover"
-          />
+          <Image src={cover} alt="Profil kapağı" fill priority unoptimized className="object-cover" />
           <div className="from-background absolute inset-0 bg-gradient-to-t via-transparent to-transparent" />
           {isMe && <CoverPicker hasCover className="absolute top-3 right-3" />}
         </div>

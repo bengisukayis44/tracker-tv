@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
-import { isImagePath, pickCoverImages } from "@/lib/cover";
+import { imagePathOf, isImagePath, orderCoverImages } from "@/lib/cover";
+import { episodeCode } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { tmdb } from "@/lib/tmdb";
 import type { ActionResult } from "./watch";
@@ -60,12 +61,33 @@ async function hasWatched(userId: string, { type, tmdbId }: TitleInput) {
   return Boolean(await where);
 }
 
-async function imagesOf({ type, tmdbId }: TitleInput) {
-  return pickCoverImages(await tmdb.backdrops(type === "SERIES" ? "tv" : "movie", tmdbId, { timeoutMs: 8_000 }));
+/** All wide images TMDB has for the title, best first. */
+async function scenesOf({ type, tmdbId }: TitleInput) {
+  return orderCoverImages(await tmdb.backdrops(type === "SERIES" ? "tv" : "movie", tmdbId, { timeoutMs: 8_000 }));
 }
 
-/** Up to ten wide scene images of a watched series or movie. */
-export async function getCoverImages(input: TitleInput): Promise<ActionResult<{ images: string[] }>> {
+export type EpisodeStill = { path: string; label: string };
+
+/** One still per episode of a series, in viewing order (specials last), from the stored episodes. */
+async function stillsOf({ type, tmdbId }: TitleInput): Promise<EpisodeStill[]> {
+  if (type !== "SERIES") return [];
+  const episodes = await prisma.episode.findMany({
+    where: { season: { title: { tmdbId, type } }, stillUrl: { not: null } },
+    select: { episodeNumber: true, name: true, stillUrl: true, season: { select: { seasonNumber: true } } },
+  });
+  const order = (n: number) => (n === 0 ? Number.MAX_SAFE_INTEGER : n);
+  return episodes
+    .sort((a, b) => order(a.season.seasonNumber) - order(b.season.seasonNumber) || a.episodeNumber - b.episodeNumber)
+    .flatMap((e) => {
+      const path = imagePathOf(e.stillUrl);
+      return path ? [{ path, label: `${episodeCode(e.season.seasonNumber, e.episodeNumber)} · ${e.name}` }] : [];
+    });
+}
+
+/** Every wide image of a watched series or movie, and (for a series) one still per episode. */
+export async function getCoverImages(
+  input: TitleInput,
+): Promise<ActionResult<{ scenes: string[]; stills: EpisodeStill[] }>> {
   const user = await getCurrentUser();
   if (!user) return LOGIN_REQUIRED;
   const parsed = titleSchema.safeParse(input);
@@ -73,7 +95,8 @@ export async function getCoverImages(input: TitleInput): Promise<ActionResult<{ 
     return { ok: false, error: "Kapak yalnızca izlediğin dizi ve filmlerden seçilebilir." };
   }
   try {
-    return { ok: true, images: await imagesOf(parsed.data) };
+    const [scenes, stills] = await Promise.all([scenesOf(parsed.data), stillsOf(parsed.data)]);
+    return { ok: true, scenes, stills };
   } catch (error) {
     console.error("Kapak görselleri alınamadı:", error);
     return { ok: false, error: "Görseller şu an yüklenemedi. Biraz sonra tekrar dene." };
@@ -89,8 +112,11 @@ export async function setCover(input: TitleInput & { path: string }): Promise<Ac
     return { ok: false, error: "Bu görsel kapak yapılamaz." };
   }
   try {
-    // Only an image TMDB actually lists for that title
-    if (!(await imagesOf(parsed.data)).includes(input.path)) return { ok: false, error: "Bu görsel kapak yapılamaz." };
+    // Only an episode still of that series, or an image TMDB actually lists for it
+    const isStill = (await stillsOf(parsed.data)).some((s) => s.path === input.path);
+    if (!isStill && !(await scenesOf(parsed.data)).includes(input.path)) {
+      return { ok: false, error: "Bu görsel kapak yapılamaz." };
+    }
   } catch {
     return { ok: false, error: "Görseller şu an doğrulanamadı. Biraz sonra tekrar dene." };
   }
