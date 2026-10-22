@@ -14,9 +14,9 @@ export const metadata: Metadata = { title: "Ayarlar" };
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent("/settings")}`);
-  const { isPrivate, coverPath } = await prisma.user.findUniqueOrThrow({
+  const { isPrivate, coverPath, coverPositionY } = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
-    select: { isPrivate: true, coverPath: true },
+    select: { isPrivate: true, coverPath: true, coverPositionY: true },
   });
 
   return (
@@ -38,7 +38,14 @@ export default async function SettingsPage() {
         <div className="space-y-3">
           {coverPath ? (
             <div className="bg-muted relative aspect-[3/1] overflow-hidden rounded-xl border">
-              <Image src={coverImageUrl(coverPath)} alt="Profil kapağın" fill unoptimized className="object-cover" />
+              <Image
+                src={coverImageUrl(coverPath)}
+                alt="Profil kapağın"
+                fill
+                unoptimized
+                className="object-cover"
+                style={{ objectPosition: `50% ${coverPositionY}%` }}
+              />
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">

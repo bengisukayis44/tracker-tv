@@ -47,6 +47,25 @@ test.describe("Profil kapağı", () => {
     await expect(cover).toHaveAttribute("src", /image\.tmdb\.org/);
     await expect(page.getByRole("button", { name: "Kapağı değiştir" })).toBeVisible();
 
+    // "Konumu ayarla": the arrow buttons and dragging move the visible part; saved for everyone
+    const position = () => cover.evaluate((img: HTMLImageElement) => img.style.objectPosition);
+    expect(await position()).toBe("50% 50%");
+    await page.getByRole("button", { name: "Konumu ayarla" }).click();
+    await page.getByRole("button", { name: "Görseli aşağı kaydır" }).click();
+    await page.getByRole("button", { name: "Görseli aşağı kaydır" }).click();
+    expect(await position()).toBe("50% 40%");
+    const box = (await cover.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 3, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 3, box.y + box.height / 2 + 40, { steps: 5 });
+    await page.mouse.up();
+    const dragged = Number((await position()).split(" ")[1].replace("%", ""));
+    expect(dragged).toBeLessThan(40);
+    await page.getByRole("button", { name: "Kaydet" }).click();
+    await expect(page.getByText("Kapağın konumu kaydedildi.")).toBeVisible();
+    await page.reload();
+    expect(await position()).toBe(`50% ${dragged}%`);
+
     // Others see it too, unless the profile is private
     const visitor = await page.context().browser()!.newPage({ baseURL: test.info().project.use.baseURL });
     try {

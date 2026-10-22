@@ -16,7 +16,7 @@ vi.mock("@/lib/auth", () => auth);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tmdb", () => ({ tmdb: tmdbMock }));
 
-const { getCoverImages, setCover } = await import("@/app/actions/cover");
+const { getCoverImages, setCover, setCoverPosition } = await import("@/app/actions/cover");
 
 const backdrop = (file_path: string, over: Partial<TmdbBackdrop> = {}): TmdbBackdrop => ({
   file_path,
@@ -110,12 +110,18 @@ describe("setCover", () => {
 
   it("accepts an episode still of the series as the cover", async () => {
     expect(await setCover({ ...sherlock, path: "/kare2.jpg" })).toEqual({ ok: true });
-    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "me" }, data: { coverPath: "/kare2.jpg" } });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: "me" },
+      data: { coverPath: "/kare2.jpg", coverPositionY: 50 },
+    });
   });
 
   it("saves an image TMDB lists for a series the user watched", async () => {
     expect(await setCover({ ...sherlock, path: "/sahne.jpg" })).toEqual({ ok: true });
-    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "me" }, data: { coverPath: "/sahne.jpg" } });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: "me" },
+      data: { coverPath: "/sahne.jpg", coverPositionY: 50 },
+    });
   });
 
   it("refuses unwatched titles and images that are not offered for it", async () => {
@@ -123,5 +129,19 @@ describe("setCover", () => {
     db.watchedEpisode.findFirst.mockResolvedValue(null);
     expect(await setCover({ ...sherlock, path: "/sahne.jpg" })).toMatchObject({ ok: false });
     expect(db.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("setCoverPosition", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    auth.getCurrentUser.mockResolvedValue({ id: "me", username: "ben", email: "b@example.com", avatarUrl: null });
+  });
+
+  it("stores a rounded 0–100 position and refuses anything else", async () => {
+    expect(await setCoverPosition(33.6)).toEqual({ ok: true });
+    expect(db.user.update).toHaveBeenCalledWith({ where: { id: "me" }, data: { coverPositionY: 34 } });
+    for (const bad of [-1, 101, Number.NaN]) expect(await setCoverPosition(bad)).toMatchObject({ ok: false });
+    expect(db.user.update).toHaveBeenCalledTimes(1);
   });
 });

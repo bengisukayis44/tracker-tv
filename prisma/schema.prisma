@@ -38,13 +38,14 @@ enum Emotion {
 
 // Profil — id = auth.users.id (Supabase Auth). Şifre ve oturumlar Supabase Auth'ta tutulur.
 model User {
-  id        String   @id
-  username  String   @unique
-  email     String   @unique
-  avatarUrl String? // Supabase Storage "avatars" kovasındaki fotoğraf
-  isPrivate Boolean  @default(false) // gizli profil: profil sayfası ve akış yalnızca sahibine açık
-  coverPath String? // profil kapağı: izlediği bir dizi/filmin TMDB sahne görseli yolu (ör. /abc.jpg)
-  createdAt DateTime @default(now())
+  id             String   @id
+  username       String   @unique
+  email          String   @unique
+  avatarUrl      String? // Supabase Storage "avatars" kovasındaki fotoğraf
+  isPrivate      Boolean  @default(false) // gizli profil: profil sayfası ve akış yalnızca sahibine açık
+  coverPath      String? // profil kapağı: izlediği bir dizi/filmin TMDB sahne görseli yolu (ör. /abc.jpg)
+  coverPositionY Int      @default(50) // kapağın dikey konumu: 0 = üstü, 100 = altı görünür
+  createdAt      DateTime @default(now())
 
   watchedEpisodes   WatchedEpisode[]
   watchedMovies     WatchedMovie[]

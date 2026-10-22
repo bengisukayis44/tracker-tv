@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Bookmark, Clapperboard, Film, Heart, Lock, MessageSquare, Settings, Tv } from "lucide-react";
@@ -7,6 +6,7 @@ import { SpoilerBlur } from "@/components/comments/spoiler-blur";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
+import { CoverBanner } from "@/components/profile/cover-banner";
 import { CoverPicker } from "@/components/profile/cover-picker";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
 import { FollowButton } from "@/components/social/follow-button";
@@ -51,11 +51,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const header = (
     <div>
       {cover ? (
-        <div className="bg-muted relative -mx-4 h-48 overflow-hidden sm:mx-0 sm:h-72 sm:rounded-3xl">
-          <Image src={cover} alt="Profil kapağı" fill priority unoptimized className="object-cover" />
-          <div className="from-background absolute inset-0 bg-gradient-to-t via-transparent to-transparent" />
-          {isMe && <CoverPicker hasCover className="absolute top-3 right-3" />}
-        </div>
+        <CoverBanner src={cover} positionY={user.coverPositionY} editable={isMe}>
+          <CoverPicker hasCover />
+        </CoverBanner>
       ) : (
         isMe && (
           <div className="text-muted-foreground -mx-4 flex h-28 items-center justify-center border-y border-dashed sm:mx-0 sm:rounded-3xl sm:border">

@@ -44,7 +44,10 @@ export function imagePathOf(url: string | null | undefined): string | null {
   return isImagePath(path) ? path : null;
 }
 
-/** Full image URL (backdrops and episode stills alike): w300 for the picker, w1280 for the profile. */
-export function coverImageUrl(path: string, size: "w300" | "w1280" = "w1280") {
+/**
+ * Full image URL (backdrops and episode stills alike): w300 for the picker, the original for the profile
+ * (the banner is up to ~1250 px wide, so sharp screens need more than w1280).
+ */
+export function coverImageUrl(path: string, size: "w300" | "w1280" | "original" = "original") {
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }

@@ -69,7 +69,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - **Profil kapağı:** profilde (kendi profilinde "Kapak ekle") ya da ayarlarda: önce izlenen diziler/filmler (en son
   izlenen başta), sonra iki sekme: **Dizi görselleri** (TMDB'deki tüm geniş görseller; yazısızlar ve en beğenilenler
   önce) ve **Bölüm kareleri** (veritabanındaki her bölümün karesi, izleme sırasıyla). İlk 10 görünür, "Daha fazla
-  göster" her seferinde 20 ekler. Küçük önizlemeler ve kapak doğrudan TMDB'den yüklenir (Vercel'in görsel
+  göster" her seferinde 20 ekler. Kapak bilgisayarda 3:1, telefonda 2:1 oranındadır; sahibi
+  **Konumu ayarla** ile görseli yukarı aşağı sürükleyip (ya da ok düğmeleriyle) görünen kısmı seçer
+  (`User.coverPositionY`, 0 = üstü, 100 = altı). Kapak TMDB'nin özgün boyutuyla gösterilir. Küçük önizlemeler ve kapak doğrudan TMDB'den yüklenir (Vercel'in görsel
   optimizasyon kotasını harcamamak için). Yalnızca görselin TMDB yolu `User.coverPath`'te saklanır; sunucu görselin gerçekten o dizi/filme ait
   ve kullanıcının izlediği bir içerik olduğunu doğrular. Gizli profilde kapak başkalarına görünmez.
 - **Kullanıcı adı** değiştirilebilir (aynı kurallar, benzersiz); profil adresi ve girişte kullanılan ad değişir.

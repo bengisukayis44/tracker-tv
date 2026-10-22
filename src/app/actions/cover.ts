@@ -120,7 +120,19 @@ export async function setCover(input: TitleInput & { path: string }): Promise<Ac
   } catch {
     return { ok: false, error: "Görseller şu an doğrulanamadı. Biraz sonra tekrar dene." };
   }
-  await prisma.user.update({ where: { id: user.id }, data: { coverPath: input.path } });
+  // A new image starts centred
+  await prisma.user.update({ where: { id: user.id }, data: { coverPath: input.path, coverPositionY: 50 } });
+  revalidatePath(`/profile/${user.username}`);
+  return { ok: true };
+}
+
+/** "Konumu ayarla": which part of the cover shows, 0 (top) to 100 (bottom). */
+export async function setCoverPosition(positionY: number): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const parsed = z.number().min(0).max(100).safeParse(positionY);
+  if (!parsed.success) return { ok: false, error: "Geçersiz konum." };
+  await prisma.user.update({ where: { id: user.id }, data: { coverPositionY: Math.round(parsed.data) } });
   revalidatePath(`/profile/${user.username}`);
   return { ok: true };
 }
