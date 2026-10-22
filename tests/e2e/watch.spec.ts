@@ -267,6 +267,31 @@ test.describe("İzleme takibi", () => {
     await expect(panel.getByText("Favori karakter")).toHaveCount(0);
   });
 
+  test("tekrar izleme sayılır, süreye eklenir ve geri alınabilir", async ({ signedInPage: page, account }) => {
+    await page.goto(episodeUrl(1, 1));
+    await page.getByRole("button", { name: "İzledim" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Kaydet" }).click();
+    const panel = page.getByRole("region", { name: "İzledin" });
+    await expect(panel).toBeVisible();
+
+    await panel.getByRole("button", { name: "Tekrar izledim" }).click();
+    await expect(page.getByText("2. kez izledin olarak kaydedildi.")).toBeVisible();
+    await panel.getByRole("button", { name: "Tekrar izledim" }).click();
+    await expect(page.getByText("3. kez izledin olarak kaydedildi.")).toBeVisible();
+    await expect(panel.getByText("3 kez izledin")).toBeVisible();
+
+    // The episode list and the profile count it too
+    await page.goto(seriesUrl(1));
+    await expect(page.getByText(/İzlendi · .+ · 3 kez/)).toBeVisible();
+    await page.goto(`/profile/${account.username}`);
+    await expect(page.getByText("1 bölüm · 2 tekrar izleme")).toBeVisible();
+
+    await page.goto(episodeUrl(1, 1));
+    await panel.getByRole("button", { name: "Son tekrarı geri al" }).click();
+    await expect(page.getByText("Son tekrar geri alındı.")).toBeVisible();
+    await expect(panel.getByText("2 kez izledin")).toBeVisible();
+  });
+
   test("film: giriş yapmamış ziyaretçi İzledim'e basınca giriş sayfasına gider", async ({ page }) => {
     await page.goto(`/movie/${INCEPTION.id}`);
     await page.getByRole("button", { name: "İzledim" }).click();

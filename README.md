@@ -33,6 +33,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Sıradaki bölüm: izlenen en ileri bölümden sonraki ilk yayınlanmış bölüm; hiç izlenmemişse ilk yayınlanmış bölüm
   (`nextEpisode`, `src/lib/watch.ts`).
 - İzlenme tarihi: bölüm/film sayfasındaki İzledin kutusunda ve dizi sayfasındaki bölüm satırlarında yazar.
+- **Tekrar izleme:** İzledin kutusundaki "Tekrar izledim" her seferinde tarihli bir izleme ekler
+  (`rewatchedAt` listesi; toplam = 1 + liste). "Son tekrarı geri al" sonuncuyu siler. Bölüm satırında "3 kez",
+  profilde "2 tekrar izleme" yazar; izleme süresine her tekrar yeniden eklenir.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
 ## Ayarlar (`/settings`)

@@ -2,9 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Eye, Loader2, Lock, Pencil, Star, Undo2 } from "lucide-react";
+import { Check, Eye, Loader2, Lock, Pencil, Repeat, Star, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveEpisodeWatch, saveMovieWatch, unwatchEpisode, unwatchMovie } from "@/app/actions/watch";
+import {
+  addRewatch,
+  saveEpisodeWatch,
+  saveMovieWatch,
+  undoRewatch,
+  unwatchEpisode,
+  unwatchMovie,
+} from "@/app/actions/watch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +40,8 @@ export type SavedWatch = {
   favoriteCastId: number | null;
   favoriteCharacter: string | null;
   watchedAt: Date;
+  /** Dates of every watch after the first */
+  rewatchedAt: Date[];
 };
 
 /** What is being marked: an episode (offers to mark earlier ones too) or a movie. */
@@ -86,6 +95,16 @@ export function WatchPanel({
       } else toast.error(result.error);
     });
 
+  const rewatch = (undo: boolean) =>
+    startTransition(async () => {
+      const result = undo ? await undoRewatch(target) : await addRewatch(target);
+      if (!result.ok) return void toast.error(result.error);
+      router.refresh();
+      toast.success(undo ? "Son tekrar geri alındı." : `${result.watchCount}. kez izledin olarak kaydedildi.`);
+    });
+
+  const lastRewatch = watch?.rewatchedAt.at(-1);
+
   return (
     <section aria-labelledby="watch-heading" className="bg-card space-y-4 rounded-2xl border p-5">
       {watch ? (
@@ -100,12 +119,29 @@ export function WatchPanel({
                 İzlenme tarihi:{" "}
                 <time dateTime={new Date(watch.watchedAt).toISOString()}>{formatDate(watch.watchedAt)}</time>
               </p>
+              {lastRewatch && (
+                <p className="text-muted-foreground text-sm">
+                  <span className="text-foreground font-semibold">{1 + watch.rewatchedAt.length} kez izledin</span>
+                  {" · son: "}
+                  <time dateTime={new Date(lastRewatch).toISOString()}>{formatDate(lastRewatch)}</time>
+                </p>
+              )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={openForm} disabled={pending}>
                 <Pencil />
                 Düzenle
               </Button>
+              <Button variant="outline" size="sm" onClick={() => rewatch(false)} disabled={pending}>
+                <Repeat />
+                Tekrar izledim
+              </Button>
+              {lastRewatch && (
+                <Button variant="ghost" size="sm" onClick={() => rewatch(true)} disabled={pending}>
+                  <Undo2 />
+                  Son tekrarı geri al
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={unwatch} disabled={pending}>
                 {pending ? <Loader2 className="animate-spin" /> : <Undo2 />}
                 İzlenmedi olarak işaretle

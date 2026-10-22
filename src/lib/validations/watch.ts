@@ -35,5 +35,12 @@ export const watchMovieSchema = z.object({ titleId: z.string().min(1), ...watchF
 export type WatchEpisodeInput = z.input<typeof watchEpisodeSchema>;
 export type WatchMovieInput = z.input<typeof watchMovieSchema>;
 
+/** An episode or a movie whose watch is changed. */
+export const watchTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("episode"), episodeId: z.string().min(1) }),
+  z.object({ kind: z.literal("movie"), titleId: z.string().min(1) }),
+]);
+export type WatchTargetInput = z.infer<typeof watchTargetSchema>;
+
 export const idSchema = z.string().min(1);
 export const idListSchema = z.array(z.string().min(1)).min(1).max(2000);

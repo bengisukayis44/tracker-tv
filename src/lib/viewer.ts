@@ -6,7 +6,7 @@ export async function getTitleViewerState(userId: string, titleId: string) {
   const [watched, favorite, watchlist] = await Promise.all([
     prisma.watchedEpisode.findMany({
       where: { userId, episode: { season: { titleId } } },
-      select: { episodeId: true, watchedAt: true },
+      select: { episodeId: true, watchedAt: true, rewatchedAt: true },
     }),
     prisma.favorite.findUnique({ where: { userId_titleId: { userId, titleId } }, select: { titleId: true } }),
     prisma.watchlistItem.findUnique({ where: { userId_titleId: { userId, titleId } }, select: { titleId: true } }),
@@ -15,6 +15,8 @@ export async function getTitleViewerState(userId: string, titleId: string) {
     watchedIds: new Set(watched.map((w) => w.episodeId)),
     /** When each watched episode was marked */
     watchedAt: new Map(watched.map((w) => [w.episodeId, w.watchedAt])),
+    /** How many times each watched episode was watched (1 + rewatches) */
+    watchCount: new Map(watched.map((w) => [w.episodeId, 1 + w.rewatchedAt.length])),
     isFavorite: Boolean(favorite),
     inWatchlist: Boolean(watchlist),
   };
@@ -29,6 +31,7 @@ const watchSelect = {
   favoriteCastId: true,
   favoriteCharacter: true,
   watchedAt: true,
+  rewatchedAt: true,
 } as const;
 
 export function getEpisodeWatch(userId: string, episodeId: string) {

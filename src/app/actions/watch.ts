@@ -9,8 +9,10 @@ import {
   idSchema,
   watchEpisodeSchema,
   watchMovieSchema,
+  watchTargetSchema,
   type WatchEpisodeInput,
   type WatchMovieInput,
+  type WatchTargetInput,
 } from "@/lib/validations/watch";
 import { airedEpisodeIds, previousUnwatchedEpisodeIds } from "@/lib/watch";
 
@@ -269,4 +271,67 @@ export async function unwatchMovie(titleId: string): Promise<ActionResult> {
   await prisma.watchedMovie.deleteMany({ where: { userId: user.id, titleId } });
   revalidateTitle(movie.tmdbId, "MOVIE");
   return { ok: true };
+}
+
+// ---------- Rewatches ----------
+
+/** The user's watch of an episode or movie, with the page to refresh. */
+async function findWatch(userId: string, input: WatchTargetInput) {
+  const parsed = watchTargetSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const target = parsed.data;
+  if (target.kind === "episode") {
+    const [watch, episode] = await Promise.all([
+      prisma.watchedEpisode.findUnique({
+        where: { userId_episodeId: { userId, episodeId: target.episodeId } },
+        select: { id: true, rewatchedAt: true },
+      }),
+      findEpisode(target.episodeId),
+    ]);
+    if (!watch || !episode) return null;
+    return {
+      ...watch,
+      save: (rewatchedAt: Date[]) => prisma.watchedEpisode.update({ where: { id: watch.id }, data: { rewatchedAt } }),
+      revalidate: () => revalidateTitle(episode.season.title.tmdbId),
+    };
+  }
+  const [watch, movie] = await Promise.all([
+    prisma.watchedMovie.findUnique({
+      where: { userId_titleId: { userId, titleId: target.titleId } },
+      select: { id: true, rewatchedAt: true },
+    }),
+    findMovie(target.titleId),
+  ]);
+  if (!watch || !movie) return null;
+  return {
+    ...watch,
+    save: (rewatchedAt: Date[]) => prisma.watchedMovie.update({ where: { id: watch.id }, data: { rewatchedAt } }),
+    revalidate: () => revalidateTitle(movie.tmdbId, "MOVIE"),
+  };
+}
+
+const NOT_WATCHED = { ok: false, error: "Önce izledim olarak işaretlemelisin." } as const;
+
+/** "Tekrar izledim": one more watch, dated now. Returns how many times it has been watched in total. */
+export async function addRewatch(input: WatchTargetInput): Promise<ActionResult<{ watchCount: number }>> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const watch = await findWatch(user.id, input);
+  if (!watch) return NOT_WATCHED;
+  const rewatchedAt = [...watch.rewatchedAt, new Date()];
+  await watch.save(rewatchedAt);
+  watch.revalidate();
+  return { ok: true, watchCount: 1 + rewatchedAt.length };
+}
+
+/** Takes back the latest rewatch (the first watch stays). */
+export async function undoRewatch(input: WatchTargetInput): Promise<ActionResult<{ watchCount: number }>> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const watch = await findWatch(user.id, input);
+  if (!watch) return NOT_WATCHED;
+  const rewatchedAt = watch.rewatchedAt.slice(0, -1);
+  await watch.save(rewatchedAt);
+  watch.revalidate();
+  return { ok: true, watchCount: 1 + rewatchedAt.length };
 }

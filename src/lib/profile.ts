@@ -18,18 +18,23 @@ export const getProfileUser = cache((username: string) =>
   }),
 );
 
-/** Total minutes and counts. Episodes without a runtime count with the series' average episode length. */
+/**
+ * Total minutes and counts. Episodes without a runtime count with the series' average episode length;
+ * every rewatch adds its length again.
+ */
 export async function getWatchStats(userId: string) {
   const [[episodes], [movies]] = await Promise.all([
-    prisma.$queryRaw<{ minutes: bigint; count: bigint }[]>`
-      SELECT COALESCE(SUM(COALESCE(e."runtime", t."runtime", 0)), 0) AS minutes, COUNT(*) AS count
+    prisma.$queryRaw<{ minutes: bigint; count: bigint; rewatches: bigint }[]>`
+      SELECT COALESCE(SUM(COALESCE(e."runtime", t."runtime", 0) * (1 + cardinality(w."rewatchedAt"))), 0) AS minutes,
+             COUNT(*) AS count, COALESCE(SUM(cardinality(w."rewatchedAt")), 0) AS rewatches
       FROM "WatchedEpisode" w
       JOIN "Episode" e ON e."id" = w."episodeId"
       JOIN "Season" s ON s."id" = e."seasonId"
       JOIN "Title" t ON t."id" = s."titleId"
       WHERE w."userId" = ${userId}`,
-    prisma.$queryRaw<{ minutes: bigint; count: bigint }[]>`
-      SELECT COALESCE(SUM(COALESCE(t."runtime", 0)), 0) AS minutes, COUNT(*) AS count
+    prisma.$queryRaw<{ minutes: bigint; count: bigint; rewatches: bigint }[]>`
+      SELECT COALESCE(SUM(COALESCE(t."runtime", 0) * (1 + cardinality(w."rewatchedAt"))), 0) AS minutes,
+             COUNT(*) AS count, COALESCE(SUM(cardinality(w."rewatchedAt")), 0) AS rewatches
       FROM "WatchedMovie" w
       JOIN "Title" t ON t."id" = w."titleId"
       WHERE w."userId" = ${userId}`,
@@ -37,8 +42,10 @@ export async function getWatchStats(userId: string) {
   return {
     seriesMinutes: Number(episodes.minutes),
     episodeCount: Number(episodes.count),
+    episodeRewatches: Number(episodes.rewatches),
     movieMinutes: Number(movies.minutes),
     movieCount: Number(movies.count),
+    movieRewatches: Number(movies.rewatches),
   };
 }
 

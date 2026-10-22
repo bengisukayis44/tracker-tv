@@ -99,13 +99,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           icon={<Tv />}
           label="Dizi izleme süresi"
           value={formatWatchTime(stats.seriesMinutes)}
-          detail={`${stats.episodeCount} bölüm`}
+          detail={withRewatches(`${stats.episodeCount} bölüm`, stats.episodeRewatches)}
         />
         <WatchTimeStat
           icon={<Film />}
           label="Film izleme süresi"
           value={formatWatchTime(stats.movieMinutes)}
-          detail={`${stats.movieCount} film`}
+          detail={withRewatches(`${stats.movieCount} film`, stats.movieRewatches)}
         />
       </section>
 
@@ -228,6 +228,10 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     </div>
   );
 }
+
+/** "12 bölüm · 3 tekrar izleme" */
+const withRewatches = (text: string, rewatches: number) =>
+  rewatches > 0 ? `${text} · ${rewatches} tekrar izleme` : text;
 
 function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{children}</div>;

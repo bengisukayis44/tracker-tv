@@ -178,6 +178,7 @@ export function SeriesView({
                   aired={isAired(ep)}
                   watched={watchedIds.has(ep.id)}
                   watchedAt={viewer?.watchedAt.get(ep.id)}
+                  watchCount={viewer?.watchCount.get(ep.id)}
                   action={
                     <WatchToggle
                       episodeId={ep.id}

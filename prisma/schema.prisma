@@ -123,15 +123,16 @@ model Episode {
 // ---------- İzleme takibi ----------
 
 model WatchedEpisode {
-  id                String    @id @default(cuid())
+  id                String     @id @default(cuid())
   userId            String
   episodeId         String
   rating            Int? // 1-10
-  emotions          Emotion[] @default([])
+  emotions          Emotion[]  @default([])
   note              String? // kişisel not (sadece kullanıcı görür)
   favoriteCastId    Int? // favori karakter: oyuncunun TMDB kimliği (Title.castMembers içinden)
   favoriteCharacter String? // seçildiği andaki karakter adı
-  watchedAt         DateTime  @default(now())
+  watchedAt         DateTime   @default(now())
+  rewatchedAt       DateTime[] @default([]) // tekrar izleme tarihleri; toplam izleme = 1 + bu listenin uzunluğu
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
@@ -140,15 +141,16 @@ model WatchedEpisode {
 }
 
 model WatchedMovie {
-  id                String    @id @default(cuid())
+  id                String     @id @default(cuid())
   userId            String
   titleId           String
   rating            Int?
-  emotions          Emotion[] @default([])
+  emotions          Emotion[]  @default([])
   note              String?
   favoriteCastId    Int? // favori karakter: oyuncunun TMDB kimliği (Title.castMembers içinden)
   favoriteCharacter String? // seçildiği andaki karakter adı
-  watchedAt         DateTime  @default(now())
+  watchedAt         DateTime   @default(now())
+  rewatchedAt       DateTime[] @default([]) // tekrar izleme tarihleri; toplam izleme = 1 + bu listenin uzunluğu
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)

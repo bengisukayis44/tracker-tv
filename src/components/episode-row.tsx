@@ -17,6 +17,7 @@ export function EpisodeRow({
   aired,
   watched = false,
   watchedAt,
+  watchCount = 1,
   action,
 }: {
   href: string;
@@ -32,6 +33,8 @@ export function EpisodeRow({
   watched?: boolean;
   /** When the viewer marked it watched */
   watchedAt?: Date;
+  /** Times watched, rewatches included */
+  watchCount?: number;
   /** Rendered next to the link, e.g. the watch toggle (a button cannot live inside the link). */
   action?: React.ReactNode;
 }) {
@@ -89,6 +92,7 @@ export function EpisodeRow({
             {watched && (
               <span className="font-semibold text-emerald-400">
                 İzlendi{watchedAt && ` · ${formatShortDate(watchedAt)}`}
+                {watchCount > 1 && ` · ${watchCount} kez`}
               </span>
             )}
             {!aired && (
