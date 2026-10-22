@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ListVideo, LogOut, Search, Tv, UserRound } from "lucide-react";
+import { LogOut, Tv } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/app/(auth)/actions";
+import { SiteNav } from "@/components/site-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,14 +27,10 @@ export async function SiteHeader() {
           <span className="hidden font-extrabold tracking-wide sm:inline">Tracker.tv</span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" asChild>
-            <Link href="/search">
-              <Search />
-              Ara
-            </Link>
-          </Button>
+        {/* Wide screens: tabs in the bar itself */}
+        <SiteNav username={user?.username ?? null} className="hidden h-full lg:block" />
 
+        <div className="flex items-center gap-2">
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -49,19 +46,6 @@ export async function SiteHeader() {
                   <span className="block font-semibold">@{user.username}</span>
                   <span className="text-muted-foreground block truncate text-xs font-normal">{user.email}</span>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href={`/profile/${user.username}`}>
-                    <UserRound />
-                    Profilim
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/watchlist">
-                    <ListVideo />
-                    İzleme listem
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <form action={logoutAction}>
                   <DropdownMenuItem asChild>
@@ -85,6 +69,8 @@ export async function SiteHeader() {
           )}
         </div>
       </div>
+      {/* Narrower screens: the tabs get a row of their own under the bar */}
+      <SiteNav username={user?.username ?? null} className="h-14 border-t lg:hidden" />
     </header>
   );
 }

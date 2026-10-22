@@ -19,7 +19,8 @@ const shortToday = () =>
   }).format(new Date());
 
 async function withDb<T>(fn: (db: Client) => Promise<T>) {
-  const db = new Client({ connectionString: process.env.DIRECT_URL });
+  // Transaction pooler: the session pooler's 15 clients are left to the test server
+  const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   try {
     return await fn(db);
@@ -93,10 +94,13 @@ test.describe("Profil", () => {
     await expect(page.getByText("Favorilere eklendi.")).toBeVisible();
 
     // The account menu leads to the profile
-    await page.getByRole("button", { name: "Hesap menüsü" }).click();
-    await page.getByRole("menuitem", { name: "Profilim" }).click();
+    // The "Profilim" tab leads to the profile
+    await page.getByRole("navigation", { name: "Ana bölümler" }).getByRole("link", { name: "Profilim" }).click();
     await expect(page).toHaveURL(`/profile/${account.username}`);
     await expect(page.getByRole("heading", { level: 1, name: `@${account.username}` })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Ana bölümler" }).getByRole("link", { name: "Profilim" }),
+    ).toHaveAttribute("aria-current", "page");
 
     const time = page.getByRole("region", { name: "İzleme süresi" });
     await expect(time.getByText("3 bölüm")).toBeVisible();
@@ -179,9 +183,10 @@ test.describe("İzleme listem", () => {
     await expect(homeContinue.getByRole("article", { name: SHERLOCK.name })).toContainText("Sıradaki · S01E02");
     await expect(homeContinue.getByRole("article", { name: BREAKING_BAD.name })).toContainText("Sıradaki · S01E01");
 
-    await page.getByRole("button", { name: "Hesap menüsü" }).click();
-    await page.getByRole("menuitem", { name: "İzleme listem" }).click();
+    const tabs = page.getByRole("navigation", { name: "Ana bölümler" });
+    await tabs.getByRole("link", { name: "İzleme listem" }).click();
     await expect(page).toHaveURL("/watchlist");
+    await expect(tabs.getByRole("link", { name: "İzleme listem" })).toHaveAttribute("aria-current", "page");
     const card = page.getByRole("article", { name: SHERLOCK.name });
     await expect(card).toContainText("Son izlenen: S01E01");
     await expect(card).toContainText(`Son izleme: ${shortToday()}`);

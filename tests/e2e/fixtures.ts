@@ -33,7 +33,8 @@ async function createAccount(): Promise<TestAccount> {
 
 /** Removes everything the account has tracked, so each test starts clean. */
 export async function resetAccount(account: TestAccount) {
-  const db = new Client({ connectionString: process.env.DIRECT_URL });
+  // Short jobs go through the transaction pooler; the session pooler's 15 clients are left to the test server
+  const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   try {
     for (const table of ["WatchedEpisode", "WatchedMovie", "Favorite", "WatchlistItem", "CommentLike", "Comment"]) {

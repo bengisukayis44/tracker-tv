@@ -2,6 +2,22 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalScroll, INCEPTION, SHERLOCK } from "./helpers";
 
 test.describe("Ana sayfa", () => {
+  test("üstteki sekmeler bölümler arasında gezdirir", async ({ page }) => {
+    await page.goto("/");
+    const tabs = page.getByRole("navigation", { name: "Ana bölümler" });
+    await expect(tabs.getByRole("link")).toHaveText(["Keşfet", "İzleme listem", "Ara", "Profilim"]);
+    await expect(tabs.getByRole("link", { name: "Keşfet" })).toHaveAttribute("aria-current", "page");
+
+    await tabs.getByRole("link", { name: "Ara" }).click();
+    await expect(page).toHaveURL("/search");
+    await expect(tabs.getByRole("link", { name: "Ara" })).toHaveAttribute("aria-current", "page");
+
+    // Personal sections ask a visitor to log in first
+    await tabs.getByRole("link", { name: "İzleme listem" }).click();
+    await expect(page).toHaveURL(`/login?callbackUrl=${encodeURIComponent("/watchlist")}`);
+    await expectNoHorizontalScroll(page);
+  });
+
   test("ziyaretçi keşfet listelerini görür", async ({ page }) => {
     await page.goto("/");
     const series = page.getByRole("region", { name: "Bu hafta popüler diziler" });

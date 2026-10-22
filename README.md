@@ -78,6 +78,10 @@ Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 
 ## Sayfalar
 
+Üstte dört sekme var: **Keşfet** (`/`), **İzleme listem** (`/watchlist`), **Ara** (`/search`), **Profilim**. Geniş
+ekranda başlık çubuğunda, daha dar ekranlarda çubuğun altında ayrı bir satırda durur. Giriş yapmamış ziyaretçi
+kişisel sekmelere basınca giriş sayfasına gider. Hesap menüsünde yalnızca çıkış var.
+
 | Yol | Sayfa |
 |---|---|
 | `/search?q=…&tur=hepsi\|dizi\|film` | Arama (dizi ve film birlikte ya da filtreli) |
@@ -115,7 +119,8 @@ npm run test:e2e     # uçtan uca testler (Playwright) — üretim derlemesi al�
 
 Uçtan uca testler gerçek Supabase veritabanını ve TMDB'yi kullanır. Yerel test sunucusu veritabanına session
 pooler (`DIRECT_URL`, 5432) ile bağlanır: yerel makineden transaction pooler (6543) bazen bir sorguyu bir dakika
-bekletiyor (canlıda, Vercel'de bu sorun yok). Her test işçisi `@e2e.test` ile biten
+bekletiyor (canlıda, Vercel'de bu sorun yok). Session pooler en fazla 15 bağlantıya izin verdiği için testlerin kendi
+kısa veritabanı işleri (hesap sıfırlama, test verisi) transaction pooler'dan gider. Her test işçisi `@e2e.test` ile biten
 hesaplarını Supabase Admin API ile bir kez açar (`SUPABASE_SECRET_KEY` gerekir, yalnızca `.env`'de durur),
 her testten önce o hesabın izleme verisini sıfırlar ve tur bitince hesapları siler. İlk kez çalıştırmadan önce: `npx playwright install chromium`.
 GitHub'da her push'ta lint, tip kontrolü, birim testleri ve derleme otomatik çalışır (`.github/workflows/ci.yml`);
