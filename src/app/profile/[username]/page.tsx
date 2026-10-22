@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bookmark, Clapperboard, Film, Heart, MessageSquare, Tv } from "lucide-react";
+import { Bookmark, Clapperboard, Film, Heart, Lock, MessageSquare, Settings, Tv } from "lucide-react";
 import { SpoilerBlur } from "@/components/comments/spoiler-blur";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
@@ -9,6 +9,7 @@ import { ProfileTabs } from "@/components/profile/profile-tabs";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
 import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { formatWatchTime } from "@/lib/format";
 import {
@@ -37,6 +38,44 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   if (!user) notFound();
   const isMe = viewer?.id === user.id;
 
+  const header = (
+    <header className="flex flex-wrap items-center gap-4">
+      <Avatar className="size-16 text-xl">
+        {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+        <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <h1 className="inline-flex max-w-full items-center gap-2 text-3xl font-extrabold tracking-tight">
+          <span className="truncate">@{user.username}</span>
+          {user.isPrivate && <Lock aria-label="Gizli profil" className="text-muted-foreground size-5 shrink-0" />}
+        </h1>
+        <p className="text-muted-foreground text-sm">{memberSince.format(user.createdAt)}&apos;den beri üye</p>
+      </div>
+      {isMe && (
+        <Button asChild variant="outline">
+          <Link href="/settings">
+            <Settings />
+            Profili düzenle
+          </Link>
+        </Button>
+      )}
+    </header>
+  );
+
+  // A private profile shows only who it is to everyone but its owner
+  if (user.isPrivate && !isMe) {
+    return (
+      <div className="space-y-8">
+        {header}
+        <EmptyState
+          icon={<Lock />}
+          title="Bu profil gizli"
+          text={`@${user.username} izlediklerini yalnızca kendisi görebilecek şekilde ayarlamış.`}
+        />
+      </div>
+    );
+  }
+
   const [stats, series, movies, favorites, comments, watchlist] = await Promise.all([
     getWatchStats(user.id),
     getSeriesProgress(user.id),
@@ -53,16 +92,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center gap-4">
-        <Avatar className="size-16 text-xl">
-          {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-          <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0">
-          <h1 className="truncate text-3xl font-extrabold tracking-tight">@{user.username}</h1>
-          <p className="text-muted-foreground text-sm">{memberSince.format(user.createdAt)}&apos;den beri üye</p>
-        </div>
-      </header>
+      {header}
 
       <section aria-label="İzleme süresi" className="grid gap-3 sm:grid-cols-2">
         <WatchTimeStat

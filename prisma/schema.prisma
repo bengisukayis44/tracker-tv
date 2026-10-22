@@ -41,7 +41,8 @@ model User {
   id        String   @id
   username  String   @unique
   email     String   @unique
-  avatarUrl String?
+  avatarUrl String? // Supabase Storage "avatars" kovasındaki fotoğraf
+  isPrivate Boolean  @default(false) // gizli profil: profil sayfası ve akış yalnızca sahibine açık
   createdAt DateTime @default(now())
 
   watchedEpisodes WatchedEpisode[]

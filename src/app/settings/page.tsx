@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { AvatarForm, PrivacyForm, UsernameForm } from "./settings-forms";
+
+export const metadata: Metadata = { title: "Ayarlar" };
+
+export default async function SettingsPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?callbackUrl=${encodeURIComponent("/settings")}`);
+  const { isPrivate } = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { isPrivate: true } });
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-8">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-extrabold tracking-tight">Ayarlar</h1>
+        <p className="text-muted-foreground text-sm">
+          {user.email} ·{" "}
+          <Link href={`/profile/${user.username}`} className="hover:text-foreground underline underline-offset-2">
+            Profilini gör
+          </Link>
+        </p>
+      </div>
+
+      <Card title="Profil fotoğrafı">
+        <AvatarForm username={user.username} avatarUrl={user.avatarUrl} />
+      </Card>
+      <Card title="Kullanıcı adı">
+        <UsernameForm username={user.username} />
+      </Card>
+      <Card title="Gizlilik">
+        <PrivacyForm isPrivate={isPrivate} />
+      </Card>
+    </div>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={title} className="bg-card space-y-4 rounded-2xl border p-5">
+      <h2 className="text-lg font-bold">{title}</h2>
+      {children}
+    </section>
+  );
+}

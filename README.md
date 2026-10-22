@@ -35,6 +35,16 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - İzlenme tarihi: bölüm/film sayfasındaki İzledin kutusunda ve dizi sayfasındaki bölüm satırlarında yazar.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
+## Ayarlar (`/settings`)
+
+- **Profil fotoğrafı:** tarayıcıda küçültülür (512 px), sunucuda `sharp` ile 256×256 WebP'ye çevrilir (konum gibi
+  bilgiler silinir) ve Supabase Storage'ın herkese açık `avatars` kovasına `<kullanıcı id>/<zaman>.webp` olarak
+  yüklenir. Kova kuralları herkesin yalnızca kendi klasörüne yazmasına izin verir (migration `profile_settings`).
+- **Kullanıcı adı** değiştirilebilir (aynı kurallar, benzersiz); profil adresi ve girişte kullanılan ad değişir.
+- **Gizli profil:** profil sayfası başkalarına yalnızca adı ve "Bu profil gizli" yazısıyla görünür. Bölüm/film
+  sayfalarındaki yorumlar ve topluluk istatistiklerine katkı (isimsiz) görünmeye devam eder.
+- Test hesaplarının yüklediği fotoğraflar tur sonunda silinir.
+
 ## Keşfet, topluluk ve nerede izlenir
 
 - **Ana sayfa (herkese):** "En çok konuşulanlar" (son 30 günde en çok yorum alan bölüm/filmler), TMDB'den

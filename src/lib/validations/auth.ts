@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+/** Same rules as the database trigger that creates profiles (^[a-z0-9_]{3,20}$). */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, "Kullanıcı adı en az 3 karakter olmalı.")
+  .max(20, "Kullanıcı adı en fazla 20 karakter olabilir.")
+  .regex(/^[a-z0-9_]+$/, "Sadece küçük harf, rakam ve alt çizgi kullanılabilir.");
+
 export const registerSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "Kullanıcı adı en az 3 karakter olmalı.")
-    .max(20, "Kullanıcı adı en fazla 20 karakter olabilir.")
-    .regex(/^[a-z0-9_]+$/, "Sadece küçük harf, rakam ve alt çizgi kullanılabilir."),
+  username: usernameSchema,
   email: z.string().trim().toLowerCase().email("Geçerli bir e-posta adresi girin."),
   password: z.string().min(8, "Şifre en az 8 karakter olmalı.").max(72, "Şifre en fazla 72 karakter olabilir."),
 });

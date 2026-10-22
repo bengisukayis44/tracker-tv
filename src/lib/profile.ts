@@ -14,7 +14,7 @@ import { nextEpisode, watchProgress } from "@/lib/watch";
 export const getProfileUser = cache((username: string) =>
   prisma.user.findUnique({
     where: { username },
-    select: { id: true, username: true, avatarUrl: true, createdAt: true },
+    select: { id: true, username: true, avatarUrl: true, isPrivate: true, createdAt: true },
   }),
 );
 

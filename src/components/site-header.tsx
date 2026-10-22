@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut, Tv } from "lucide-react";
+import { LogOut, Settings, Tv } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/app/(auth)/actions";
 import { SiteNav } from "@/components/site-nav";
@@ -47,6 +47,12 @@ export async function SiteHeader() {
                   <span className="text-muted-foreground block truncate text-xs font-normal">{user.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <Settings />
+                    Ayarlar
+                  </Link>
+                </DropdownMenuItem>
                 <form action={logoutAction}>
                   <DropdownMenuItem asChild>
                     <button type="submit" className="w-full">

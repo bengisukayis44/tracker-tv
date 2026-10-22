@@ -40,6 +40,10 @@ export async function resetAccount(account: TestAccount) {
     for (const table of ["WatchedEpisode", "WatchedMovie", "Favorite", "WatchlistItem", "CommentLike", "Comment"]) {
       await db.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [account.id]);
     }
+    await db.query(`UPDATE "User" SET "isPrivate" = false, "avatarUrl" = NULL, "username" = $2 WHERE "id" = $1`, [
+      account.id,
+      account.username,
+    ]);
   } finally {
     await db.end();
   }
