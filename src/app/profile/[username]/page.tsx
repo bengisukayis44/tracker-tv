@@ -7,10 +7,12 @@ import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
+import { FollowButton } from "@/components/social/follow-button";
 import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
+import { getFollowState } from "@/lib/social";
 import { formatWatchTime } from "@/lib/format";
 import {
   getFavorites,
@@ -37,6 +39,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const [user, viewer] = await Promise.all([getProfileUser(decodeURIComponent(username)), getCurrentUser()]);
   if (!user) notFound();
   const isMe = viewer?.id === user.id;
+  const follow = await getFollowState(user.id, viewer?.id ?? null);
 
   const header = (
     <header className="flex flex-wrap items-center gap-4">
@@ -49,8 +52,20 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           <span className="truncate">@{user.username}</span>
           {user.isPrivate && <Lock aria-label="Gizli profil" className="text-muted-foreground size-5 shrink-0" />}
         </h1>
-        <p className="text-muted-foreground text-sm">{memberSince.format(user.createdAt)}&apos;den beri üye</p>
+        <p className="text-muted-foreground text-sm">
+          {memberSince.format(user.createdAt)}&apos;den beri üye ·{" "}
+          <span className="text-foreground font-semibold">{follow.followers}</span> takipçi ·{" "}
+          <span className="text-foreground font-semibold">{follow.following}</span> takip
+        </p>
       </div>
+      {!isMe && !user.isPrivate && (
+        <FollowButton
+          userId={user.id}
+          username={user.username}
+          isFollowing={follow.isFollowing}
+          signedIn={viewer !== null}
+        />
+      )}
       {isMe && (
         <Button asChild variant="outline">
           <Link href="/settings">

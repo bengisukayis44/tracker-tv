@@ -4,10 +4,12 @@ import { after } from "next/server";
 import { AlertCircle, Clock, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
+import { UserChip } from "@/components/social/user-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { refreshSearchCache, searchTitles, titleHref, type SearchKind, type SearchResult } from "@/lib/catalog";
 import { genreLabel, pickRating, statusLabel } from "@/lib/format";
+import { searchUsers } from "@/lib/social";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Ara" };
@@ -47,6 +49,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     }
   }
   const retryHref = filterHref(q, filter);
+  // People too, on the unfiltered search
+  const users = q && filter === "hepsi" ? await searchUsers(q) : [];
 
   return (
     <div className="space-y-8">
@@ -92,6 +96,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           ))}
         </nav>
       </div>
+
+      {users.length > 0 && (
+        <section aria-labelledby="user-results" className="space-y-3">
+          <h2 id="user-results" className="text-lg font-bold">
+            Kullanıcılar
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {users.map((u) => (
+              <UserChip key={u.username} user={u} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {!q ? (
         <EmptyState icon={<Search />} title="Aramaya başla" text="Yukarıdaki kutuya bir dizi ya da film adı yaz." />

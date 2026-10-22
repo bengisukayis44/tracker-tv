@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, ListVideo, Search, UserRound } from "lucide-react";
+import { Compass, ListVideo, Rss, Search, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Main sections as tabs: Keşfet, İzleme listem, Ara, Profilim.
+ * Main sections as tabs: Keşfet, Akış, İzleme listem, Ara, Profilim.
  * Signed-out visitors see them too; the personal ones lead to the login page and back.
  */
 export function SiteNav({ username, className }: { username: string | null; className?: string }) {
@@ -16,6 +16,7 @@ export function SiteNav({ username, className }: { username: string | null; clas
 
   const tabs = [
     { label: "Keşfet", href: "/", icon: Compass, active: pathname === "/" },
+    { label: "Akış", href: needsLogin("/akis"), icon: Rss, active: pathname.startsWith("/akis") },
     {
       label: "İzleme listem",
       href: needsLogin("/watchlist"),

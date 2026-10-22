@@ -5,7 +5,7 @@ test.describe("Ana sayfa", () => {
   test("üstteki sekmeler bölümler arasında gezdirir", async ({ page }) => {
     await page.goto("/");
     const tabs = page.getByRole("navigation", { name: "Ana bölümler" });
-    await expect(tabs.getByRole("link")).toHaveText(["Keşfet", "İzleme listem", "Ara", "Profilim"]);
+    await expect(tabs.getByRole("link")).toHaveText(["Keşfet", "Akış", "İzleme listem", "Ara", "Profilim"]);
     await expect(tabs.getByRole("link", { name: "Keşfet" })).toHaveAttribute("aria-current", "page");
 
     await tabs.getByRole("link", { name: "Ara" }).click();

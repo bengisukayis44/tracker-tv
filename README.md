@@ -38,6 +38,15 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   profilde "2 tekrar izleme" yazar; izleme süresine her tekrar yeniden eklenir.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
+## Takip ve akış
+
+- Başkasının profilinde **Takip et**; profilde takipçi ve takip sayısı. Gizli profiller takip edilemez.
+- **Akış** (`/akis`): takip edilenlerin son 60 gündeki izlemeleri (tekrarlar dahil, puanıyla) ve yorumları.
+  Aynı kişinin aynı gün aynı diziden izlediği bölümler tek satırda toplanır ("3 bölüm izledi"). Gizli profile
+  geçen birinin hareketleri akışa girmez; kişisel notlar hiçbir zaman gösterilmez.
+- Akışta son 30 günde en çok izleme yapan herkese açık kullanıcılar önerilir; arama sayfası kullanıcı adlarını da
+  bulur. `@e2e.test` test hesapları öneri ve aramada gösterilmez.
+
 ## Ayarlar (`/settings`)
 
 - **Profil fotoğrafı:** tarayıcıda küçültülür (512 px), sunucuda `sharp` ile 256×256 WebP'ye çevrilir (konum gibi
@@ -91,9 +100,9 @@ Vercel ortam değişkenleri: `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 
 ## Sayfalar
 
-Üstte dört sekme var: **Keşfet** (`/`), **İzleme listem** (`/watchlist`), **Ara** (`/search`), **Profilim**. Geniş
+Üstte beş sekme var: **Keşfet** (`/`), **Akış** (`/akis`), **İzleme listem** (`/watchlist`), **Ara** (`/search`), **Profilim**. Geniş
 ekranda başlık çubuğunda, daha dar ekranlarda çubuğun altında ayrı bir satırda durur. Giriş yapmamış ziyaretçi
-kişisel sekmelere basınca giriş sayfasına gider. Hesap menüsünde yalnızca çıkış var.
+kişisel sekmelere basınca giriş sayfasına gider. Hesap menüsünde Ayarlar ve Çıkış var.
 
 | Yol | Sayfa |
 |---|---|
