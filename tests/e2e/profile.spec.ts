@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { Client } from "pg";
 import { expect, test } from "./fixtures";
 import { expectNoHorizontalScroll, INCEPTION, SHERLOCK } from "./helpers";
 
@@ -7,6 +8,61 @@ const BREAKING_BAD = { id: 1396, name: "Breaking Bad" };
 
 const quickToggle = (page: Page, label: string) =>
   page.getByRole("button", { name: `${label}: izledim olarak işaretle` });
+
+/** Today in Turkish time as the site prints it, e.g. "22 Eki 2026". */
+const shortToday = () =>
+  new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Europe/Istanbul",
+  }).format(new Date());
+
+async function withDb<T>(fn: (db: Client) => Promise<T>) {
+  const db = new Client({ connectionString: process.env.DIRECT_URL });
+  await db.connect();
+  try {
+    return await fn(db);
+  } finally {
+    await db.end();
+  }
+}
+
+/**
+ * A made-up series straight in the database: episode 1 aired yesterday, episode 2 airs in `daysAhead` days.
+ * Its negative TMDB id can never clash with a real one; it is up to date, so nothing asks TMDB for it.
+ */
+async function createTestSeries(daysAhead: number) {
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const titleId = `e2e-title-${suffix}`;
+  const name = `E2E Dizi ${suffix}`;
+  // Air dates are stored as midnight UTC of the (Turkish) calendar day
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
+  const day = (offset: number) => new Date(Date.parse(`${today}T00:00:00Z`) + offset * 24 * 60 * 60 * 1000);
+  await withDb(async (db) => {
+    await db.query(
+      `INSERT INTO "Title" ("id", "tmdbId", "type", "name", "status", "lastSyncedAt", "castMembers")
+       VALUES ($1, $2, 'SERIES', $3, 'Returning Series', now(), '[]')`,
+      [titleId, -Math.floor(Math.random() * 1e9) - 1, name],
+    );
+    await db.query(`INSERT INTO "Season" ("id", "titleId", "seasonNumber") VALUES ($1, $2, 1)`, [
+      `${titleId}-s1`,
+      titleId,
+    ]);
+    await db.query(
+      `INSERT INTO "Episode" ("id", "seasonId", "episodeNumber", "name", "airDate")
+       VALUES ($1, $3, 1, 'İlk Bölüm', $4), ($2, $3, 2, 'Gelecek Bölüm', $5)`,
+      [`${titleId}-e1`, `${titleId}-e2`, `${titleId}-s1`, day(-1), day(daysAhead)],
+    );
+  });
+  return { titleId, name, remove: () => withDb((db) => db.query(`DELETE FROM "Title" WHERE "id" = $1`, [titleId])) };
+}
+
+function addToWatchlist(userId: string, titleId: string) {
+  return withDb((db) =>
+    db.query(`INSERT INTO "WatchlistItem" ("userId", "titleId") VALUES ($1, $2)`, [userId, titleId]),
+  );
+}
 
 async function watchMovie(page: Page, rating: number) {
   await page.goto(`/movie/${INCEPTION.id}`);
@@ -105,32 +161,33 @@ test.describe("İzleme listem", () => {
     await expect(page).toHaveURL(`/login?callbackUrl=${encodeURIComponent("/watchlist")}`);
   });
 
-  test("izlemeye devam et sıradaki bölümü gösterir, daha sonra izle listesinden çıkarılır", async ({
+  test("izlemeye devam et: başlanan dizide sıradaki bölüm, listeye eklenen dizide ilk bölüm", async ({
     signedInPage: page,
   }) => {
     await page.goto(`/series/${SHERLOCK.id}/season/1`);
     await quickToggle(page, "1. sezon 1. bölüm").click();
     await expect(page.getByLabel("İzleme ilerlemesi")).toContainText("1/12 bölüm izlendi");
+    // The watched date is shown on the episode row
+    await expect(page.getByText(`İzlendi · ${shortToday()}`)).toBeVisible();
     await page.goto(`/series/${BREAKING_BAD.id}`);
     await page.getByRole("button", { name: "Daha sonra izle" }).click();
     await expect(page.getByText("Daha sonra izle listene eklendi.")).toBeVisible();
 
-    // Home page shows both lists
+    // Home page: a series put on the list starts from its first episode
     await page.goto("/");
-    const homeContinue = page.getByRole("region", {
-      name: "İzlemeye devam et",
-    });
+    const homeContinue = page.getByRole("region", { name: "İzlemeye devam et" });
     await expect(homeContinue.getByRole("article", { name: SHERLOCK.name })).toContainText("Sıradaki · S01E02");
-    await expect(
-      page.getByRole("region", { name: "Daha sonra izle" }).getByRole("link", { name: /Breaking Bad/ }),
-    ).toBeVisible();
+    await expect(homeContinue.getByRole("article", { name: BREAKING_BAD.name })).toContainText("Sıradaki · S01E01");
 
     await page.getByRole("button", { name: "Hesap menüsü" }).click();
     await page.getByRole("menuitem", { name: "İzleme listem" }).click();
     await expect(page).toHaveURL("/watchlist");
     const card = page.getByRole("article", { name: SHERLOCK.name });
     await expect(card).toContainText("Son izlenen: S01E01");
+    await expect(card).toContainText(`Son izleme: ${shortToday()}`);
     await expect(card).toContainText("Sıradaki · S01E02");
+    const listed = page.getByRole("article", { name: BREAKING_BAD.name });
+    await expect(listed).toContainText("Daha sonra izle listende");
 
     // One click marks the next episode and moves on
     await quickToggle(page, `${SHERLOCK.name} 1. sezon 2. bölüm`).click();
@@ -138,7 +195,34 @@ test.describe("İzleme listem", () => {
 
     await page.getByRole("button", { name: `${BREAKING_BAD.name}: listeden kaldır` }).click();
     await expect(page.getByText(`${BREAKING_BAD.name} listenden çıkarıldı.`)).toBeVisible();
+    await expect(listed).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Daha sonra izle" }).getByText("Liste boş")).toBeVisible();
     await expectNoHorizontalScroll(page);
+  });
+
+  test("yakında: yayınlanacak bölüm kaç gün kaldığıyla görünür", async ({ signedInPage: page, account }) => {
+    // A made-up series whose second episode airs in 3 days
+    const series = await createTestSeries(3);
+    try {
+      await addToWatchlist(account.id, series.titleId);
+      await page.goto("/watchlist");
+
+      // On the list it starts from the first (aired) episode; the second one is counted down
+      const card = page.getByRole("article", { name: series.name });
+      await expect(card).toContainText("Sıradaki · S01E01");
+      const upcoming = page.getByRole("region", { name: "Yakında" });
+      await expect(
+        upcoming.getByRole("link", { name: `${series.name}: S01E02 · Gelecek Bölüm, 3 gün sonra` }),
+      ).toBeVisible();
+
+      // Watching the first episode leaves only the countdown
+      await quickToggle(page, `${series.name} 1. sezon 1. bölüm`).click();
+      await expect(card).toHaveCount(0);
+      await expect(upcoming.getByText("3 gün sonra")).toBeVisible();
+      await page.goto("/");
+      await expect(page.getByRole("region", { name: "Yakında" }).getByText(series.name)).toBeVisible();
+    } finally {
+      await series.remove();
+    }
   });
 });

@@ -1,11 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { WatchToggle } from "@/components/watch/watch-toggle";
-import { episodeCode } from "@/lib/format";
-import type { EpisodeLink, SeriesProgress } from "@/lib/profile";
+import { episodeCode, formatShortDate } from "@/lib/format";
+import type { EpisodeLink, TrackedSeries } from "@/lib/profile";
+import { WatchlistRemoveButton } from "./watchlist-remove-button";
 
-/** "İzlemeye devam et": where you left off, the next episode and a one-click "izledim" for it. */
-export function ContinueWatchingCard({ series }: { series: SeriesProgress & { next: EpisodeLink } }) {
+/**
+ * "İzlemeye devam et": where you left off (or that it is on the watch-later list), the next episode and a
+ * one-click "izledim" for it.
+ */
+export function ContinueWatchingCard({ series }: { series: TrackedSeries & { next: EpisodeLink } }) {
   const { next, last, progress } = series;
   const episodeHref = (ep: EpisodeLink) =>
     `/series/${series.tmdbId}/season/${ep.seasonNumber}/episode/${ep.episodeNumber}`;
@@ -24,10 +28,18 @@ export function ContinueWatchingCard({ series }: { series: SeriesProgress & { ne
         <Link href={`/series/${series.tmdbId}`} className="hover:text-primary truncate font-bold">
           {series.name}
         </Link>
-        {last && (
+        {last ? (
           <p className="text-muted-foreground truncate text-xs">
             Son izlenen: {episodeCode(last.seasonNumber, last.episodeNumber)} · {last.name}
           </p>
+        ) : (
+          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <span>Daha sonra izle listende · baştan başla</span>
+            <WatchlistRemoveButton titleId={series.id} name={series.name} compact />
+          </div>
+        )}
+        {series.lastWatchedAt && (
+          <p className="text-muted-foreground text-xs">Son izleme: {formatShortDate(series.lastWatchedAt)}</p>
         )}
         <div className="mt-auto flex items-center gap-3">
           <Link href={episodeHref(next)} className="group min-w-0 flex-1">

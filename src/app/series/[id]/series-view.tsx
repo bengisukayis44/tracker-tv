@@ -173,6 +173,7 @@ export function SeriesView({
                   rating={pickRating(ep.imdbRating, ep.sourceRating)}
                   aired={isAired(ep)}
                   watched={watchedIds.has(ep.id)}
+                  watchedAt={viewer?.watchedAt.get(ep.id)}
                   action={
                     <WatchToggle
                       episodeId={ep.id}

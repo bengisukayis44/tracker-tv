@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { isStale } from "@/lib/catalog";
 import { formatCommentTime } from "@/lib/comments";
+import { episodeCode } from "@/lib/format";
 import { nextEpisode, watchProgress } from "@/lib/watch";
 
 /**
@@ -40,18 +42,30 @@ export async function getWatchStats(userId: string) {
   };
 }
 
-export type EpisodeLink = { seasonNumber: number; episodeNumber: number; name: string; episodeId: string };
+export type EpisodeLink = {
+  seasonNumber: number;
+  episodeNumber: number;
+  name: string;
+  episodeId: string;
+  airDate: Date | null;
+};
 
 /**
- * Every series the user has watched something of: progress, where they left off and what comes next,
- * most recently watched first.
+ * Series the user follows: everything they have watched an episode of, plus series on their
+ * "Daha sonra izle" list (those start from the first episode). For each: progress, where they left off,
+ * the next aired episode and the next episode still to air. Most recent activity first.
  */
-export async function getSeriesProgress(userId: string) {
-  const watched = await prisma.watchedEpisode.findMany({
-    where: { userId },
-    select: { episodeId: true, watchedAt: true, episode: { select: { season: { select: { titleId: true } } } } },
-  });
-  if (watched.length === 0) return [];
+export const getTrackedSeries = cache(async (userId: string) => {
+  const [watched, listed] = await Promise.all([
+    prisma.watchedEpisode.findMany({
+      where: { userId },
+      select: { episodeId: true, watchedAt: true, episode: { select: { season: { select: { titleId: true } } } } },
+    }),
+    prisma.watchlistItem.findMany({
+      where: { userId, title: { type: "SERIES" } },
+      select: { titleId: true, addedAt: true },
+    }),
+  ]);
 
   const lastWatchedAt = new Map<string, Date>();
   for (const w of watched) {
@@ -59,15 +73,20 @@ export async function getSeriesProgress(userId: string) {
     const prev = lastWatchedAt.get(titleId);
     if (!prev || w.watchedAt > prev) lastWatchedAt.set(titleId, w.watchedAt);
   }
+  const addedAt = new Map(listed.map((l) => [l.titleId, l.addedAt]));
+  const ids = [...new Set([...lastWatchedAt.keys(), ...addedAt.keys()])];
+  if (ids.length === 0) return [];
   const watchedIds = new Set(watched.map((w) => w.episodeId));
 
   const titles = await prisma.title.findMany({
-    where: { id: { in: [...lastWatchedAt.keys()] } },
+    where: { id: { in: ids } },
     select: {
       id: true,
       tmdbId: true,
       name: true,
       posterUrl: true,
+      status: true,
+      lastSyncedAt: true,
       seasons: {
         select: {
           seasonNumber: true,
@@ -77,39 +96,119 @@ export async function getSeriesProgress(userId: string) {
     },
   });
 
-  type Item = { seasonNumber: number; episode: { id: string; episodeNumber: number; name: string } } | null;
+  type Item = {
+    seasonNumber: number;
+    episode: { id: string; episodeNumber: number; name: string; airDate: Date | null };
+  } | null;
   const toLink = (item: Item): EpisodeLink | null =>
     item && {
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episode.episodeNumber,
       name: item.episode.name,
       episodeId: item.episode.id,
+      airDate: item.episode.airDate,
     };
 
   return titles
     .map((title) => {
-      const { last, next } = nextEpisode(title.seasons, watchedIds);
+      const { last, next, upcoming } = nextEpisode(title.seasons, watchedIds);
+      const lastWatched = lastWatchedAt.get(title.id) ?? null;
       return {
         id: title.id,
         tmdbId: title.tmdbId,
         name: title.name,
         posterUrl: title.posterUrl,
+        status: title.status,
+        lastSyncedAt: title.lastSyncedAt,
         progress: watchProgress(title.seasons, watchedIds),
-        lastWatchedAt: lastWatchedAt.get(title.id)!,
+        /** Something of it is watched (otherwise it is only on the watch-later list) */
+        started: lastWatched !== null,
+        inWatchlist: addedAt.has(title.id),
+        lastWatchedAt: lastWatched,
+        /** Last watch, or when it was put on the list */
+        activityAt: lastWatched ?? addedAt.get(title.id)!,
         last: toLink(last),
         next: toLink(next),
+        upcoming: toLink(upcoming),
       };
     })
-    .sort((a, b) => b.lastWatchedAt.getTime() - a.lastWatchedAt.getTime());
+    .sort((a, b) => b.activityAt.getTime() - a.activityAt.getTime());
+});
+
+export type TrackedSeries = Awaited<ReturnType<typeof getTrackedSeries>>[number];
+
+/** "İzlediğim Diziler" on the profile: series with at least one watched episode. */
+export async function getSeriesProgress(userId: string) {
+  return (await getTrackedSeries(userId)).filter((s) => s.started);
 }
 
-export type SeriesProgress = Awaited<ReturnType<typeof getSeriesProgress>>[number];
+export type SeriesProgress = TrackedSeries;
 
-/** "İzlemeye devam et": started series with an aired episode still to watch. */
+/**
+ * "İzlemeye devam et": started series with an aired episode still to watch, and series on the watch-later
+ * list from their first episode.
+ */
 export async function getContinueWatching(userId: string) {
-  return (await getSeriesProgress(userId)).filter(
-    (s): s is SeriesProgress & { next: EpisodeLink } => s.next !== null,
+  return (await getTrackedSeries(userId)).filter(
+    (s): s is TrackedSeries & { next: EpisodeLink } => s.next !== null,
   );
+}
+
+export type UpcomingItem = {
+  key: string;
+  href: string;
+  name: string;
+  posterUrl: string | null;
+  /** "S02E05 · Bölüm adı", or "Vizyon" for a movie */
+  label: string;
+  airDate: Date;
+};
+
+/**
+ * "Yakında": the next episode still to air of every followed series and movies on the watch-later list
+ * that are not released yet, soonest first.
+ */
+export async function getUpcoming(userId: string): Promise<UpcomingItem[]> {
+  const now = new Date();
+  const [series, movies] = await Promise.all([
+    getTrackedSeries(userId),
+    prisma.watchlistItem.findMany({
+      where: { userId, title: { type: "MOVIE", releaseDate: { gt: now } } },
+      select: { title: { select: { id: true, tmdbId: true, name: true, posterUrl: true, releaseDate: true } } },
+    }),
+  ]);
+  const items: UpcomingItem[] = [
+    ...series
+      .filter((s) => s.upcoming?.airDate)
+      .map((s) => ({
+        key: s.id,
+        href: `/series/${s.tmdbId}/season/${s.upcoming!.seasonNumber}/episode/${s.upcoming!.episodeNumber}`,
+        name: s.name,
+        posterUrl: s.posterUrl,
+        label: `${episodeCode(s.upcoming!.seasonNumber, s.upcoming!.episodeNumber)} · ${s.upcoming!.name}`,
+        airDate: s.upcoming!.airDate!,
+      })),
+    ...movies.map(({ title }) => ({
+      key: title.id,
+      href: `/movie/${title.tmdbId}`,
+      name: title.name,
+      posterUrl: title.posterUrl,
+      label: "Vizyon",
+      airDate: title.releaseDate!,
+    })),
+  ];
+  return items.sort((a, b) => a.airDate.getTime() - b.airDate.getTime());
+}
+
+/**
+ * Followed series due a refresh from TMDB, so new episodes and air dates show up in "Yakında" without anyone
+ * opening the series page. Callers refresh them after the response.
+ */
+export async function staleTrackedSeries(userId: string, limit = 5) {
+  return (await getTrackedSeries(userId))
+    .filter((s) => s.tmdbId !== null && isStale(s.lastSyncedAt, s.status))
+    .slice(0, limit)
+    .map((s) => s.tmdbId!);
 }
 
 const titleCard = { id: true, tmdbId: true, type: true, name: true, posterUrl: true, releaseDate: true } as const;

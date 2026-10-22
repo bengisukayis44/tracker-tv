@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  daysUntil,
   episodeCode,
+  formatCountdown,
   formatDate,
+  formatShortDate,
   formatRuntime,
   formatWatchTime,
   genreLabel,
@@ -83,5 +86,37 @@ describe("formatWatchTime", () => {
     [-10, "0 saat"],
   ])("%i dakika → %s", (minutes, expected) => {
     expect(formatWatchTime(minutes)).toBe(expected);
+  });
+});
+
+describe("formatShortDate", () => {
+  it("uses short Turkish month names in Turkish time", () => {
+    expect(formatShortDate(new Date("2026-10-21T22:30:00Z"))).toBe("22 Eki 2026");
+    expect(formatShortDate(null)).toBeNull();
+  });
+});
+
+describe("daysUntil and formatCountdown", () => {
+  // 22 Ekim 2026, 23:30 in Istanbul
+  const now = new Date("2026-10-22T20:30:00Z");
+  // Air dates are stored as midnight UTC of the day
+  const day = (d: string) => new Date(`${d}T00:00:00Z`);
+
+  it("counts calendar days in Turkish time", () => {
+    expect(daysUntil(day("2026-10-22"), now)).toBe(0);
+    expect(daysUntil(day("2026-10-23"), now)).toBe(1);
+    expect(daysUntil(day("2026-10-25"), now)).toBe(3);
+    expect(daysUntil(day("2026-11-21"), now)).toBe(30);
+    // Just after midnight in Istanbul it is already the next day
+    expect(daysUntil(day("2026-10-23"), new Date("2026-10-22T21:30:00Z"))).toBe(0);
+  });
+
+  it.each([
+    [0, "Bugün"],
+    [1, "Yarın"],
+    [3, "3 gün sonra"],
+    [-2, "Bugün"],
+  ])("%i → %s", (days, expected) => {
+    expect(formatCountdown(days)).toBe(expected);
   });
 });

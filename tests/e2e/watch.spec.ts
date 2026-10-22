@@ -207,6 +207,13 @@ test.describe("İzleme takibi", () => {
     await expect(page.getByText("İzledin olarak kaydedildi.")).toBeVisible();
     const panel = page.getByRole("region", { name: "İzledin" });
     await expect(panel.getByText("9/10")).toBeVisible();
+    const today = new Intl.DateTimeFormat("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "Europe/Istanbul",
+    }).format(new Date());
+    await expect(panel.getByText(`İzlenme tarihi: ${today}`)).toBeVisible();
     await expect(panel.getByRole("list", { name: "Seçtiğin duygular" })).toHaveText("🤩Heyecanlı");
     await expect(panel.getByText("Rüya içinde rüya.")).toBeVisible();
     await expect(panel.getByText("Dom Cobb")).toBeVisible();

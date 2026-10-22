@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CastMember } from "@/lib/cast";
 import type { EmotionValue } from "@/lib/emotions";
+import { formatDate } from "@/lib/format";
 import { NOTE_MAX_LENGTH } from "@/lib/validations/watch";
 import { EmotionList, EmotionPicker } from "./emotion-picker";
 import { CastAvatar, CharacterPicker } from "./character-picker";
@@ -31,6 +32,7 @@ export type SavedWatch = {
   note: string | null;
   favoriteCastId: number | null;
   favoriteCharacter: string | null;
+  watchedAt: Date;
 };
 
 /** What is being marked: an episode (offers to mark earlier ones too) or a movie. */
@@ -89,10 +91,16 @@ export function WatchPanel({
       {watch ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="watch-heading" className="inline-flex items-center gap-2 text-lg font-bold text-emerald-400">
-              <Check className="size-5" />
-              İzledin
-            </h2>
+            <div>
+              <h2 id="watch-heading" className="inline-flex items-center gap-2 text-lg font-bold text-emerald-400">
+                <Check className="size-5" />
+                İzledin
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                İzlenme tarihi:{" "}
+                <time dateTime={new Date(watch.watchedAt).toISOString()}>{formatDate(watch.watchedAt)}</time>
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={openForm} disabled={pending}>
                 <Pencil />

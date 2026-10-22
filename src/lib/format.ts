@@ -1,8 +1,28 @@
-const dateFormatter = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+// Turkish time everywhere, so server and browser print the same day
+const TIME_ZONE = "Europe/Istanbul";
+const dateFormatter = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: TIME_ZONE,
+});
+const shortDateFormatter = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: TIME_ZONE,
+});
 
+/** "25 Temmuz 2010" */
 export function formatDate(date: Date | string | null | undefined): string | null {
   if (!date) return null;
   return dateFormatter.format(new Date(date));
+}
+
+/** "25 Tem 2010" */
+export function formatShortDate(date: Date | string | null | undefined): string | null {
+  if (!date) return null;
+  return shortDateFormatter.format(new Date(date));
 }
 
 export function formatRuntime(minutes: number | null | undefined): string | null {
@@ -94,4 +114,19 @@ export function formatWatchTime(totalMinutes: number): string {
   const days = Math.floor((totalHours % (30 * 24)) / 24);
   const hours = totalHours % 24;
   return [months && `${months} ay`, days && `${days} gün`, hours && `${hours} saat`].filter(Boolean).join(" ");
+}
+
+const isoDay = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }); // YYYY-MM-DD
+
+/** Whole calendar days (Turkish time) from `now` until `date`: 0 today, 1 tomorrow, negative in the past. */
+export function daysUntil(date: Date, now = new Date()): number {
+  const day = (d: Date) => Date.parse(`${isoDay.format(d)}T00:00:00Z`);
+  return Math.round((day(date) - day(now)) / (24 * 60 * 60 * 1000));
+}
+
+/** "Bugün", "Yarın", "3 gün sonra" */
+export function formatCountdown(days: number): string {
+  if (days <= 0) return "Bugün";
+  if (days === 1) return "Yarın";
+  return `${days} gün sonra`;
 }

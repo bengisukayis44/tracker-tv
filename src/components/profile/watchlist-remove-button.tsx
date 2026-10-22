@@ -8,7 +8,16 @@ import { toggleWatchlist } from "@/app/actions/watch";
 import { Button } from "@/components/ui/button";
 
 /** "Kaldır" under a "Daha sonra izle" card. */
-export function WatchlistRemoveButton({ titleId, name }: { titleId: string; name: string }) {
+export function WatchlistRemoveButton({
+  titleId,
+  name,
+  compact = false,
+}: {
+  titleId: string;
+  name: string;
+  /** A small inline link-style button instead of a full-width one */
+  compact?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -19,6 +28,19 @@ export function WatchlistRemoveButton({ titleId, name }: { titleId: string; name
       router.refresh();
       toast.success(`${name} listenden çıkarıldı.`);
     });
+
+  if (compact)
+    return (
+      <button
+        type="button"
+        onClick={remove}
+        disabled={pending}
+        aria-label={`${name}: listeden kaldır`}
+        className="hover:text-foreground font-semibold underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        Kaldır
+      </button>
+    );
 
   return (
     <Button

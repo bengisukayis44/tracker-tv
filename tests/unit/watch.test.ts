@@ -55,27 +55,38 @@ describe("previousUnwatchedEpisodeIds", () => {
 });
 
 describe("nextEpisode", () => {
-  const ids = (r: ReturnType<typeof nextEpisode>) => [r.last?.episode.id ?? null, r.next?.episode.id ?? null];
+  const ids = (r: ReturnType<typeof nextEpisode>) => [
+    r.last?.episode.id ?? null,
+    r.next?.episode.id ?? null,
+    r.upcoming?.episode.id ?? null,
+  ];
 
   it("continues after the furthest watched episode, across seasons", () => {
-    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s1e2"]), now))).toEqual(["s1e2", "s1e3"]);
-    expect(ids(nextEpisode(seasons, new Set(["s1e3"]), now))).toEqual(["s1e3", "s2e1"]);
+    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s1e2"]), now))).toEqual(["s1e2", "s1e3", "s2e2"]);
+    expect(ids(nextEpisode(seasons, new Set(["s1e3"]), now))).toEqual(["s1e3", "s2e1", "s2e2"]);
   });
 
   it("goes by the furthest episode even with gaps before it", () => {
-    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s2e1"]), now))).toEqual(["s2e1", null]);
+    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s2e1"]), now))).toEqual(["s2e1", null, "s2e2"]);
   });
 
-  it("has no next episode when caught up (the rest has not aired) or nothing is watched", () => {
-    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s1e2", "s1e3", "s2e1"]), now))).toEqual(["s2e1", null]);
-    expect(ids(nextEpisode(seasons, new Set(), now))).toEqual([null, null]);
-    // Specials do not count as progress
-    expect(ids(nextEpisode(seasons, new Set(["special"]), now))).toEqual([null, null]);
+  it("has no next episode when caught up, only the one still to air", () => {
+    expect(ids(nextEpisode(seasons, new Set(["s1e1", "s1e2", "s1e3", "s2e1"]), now))).toEqual(["s2e1", null, "s2e2"]);
+  });
+
+  it("starts from the first aired episode when nothing is watched (specials do not count)", () => {
+    expect(ids(nextEpisode(seasons, new Set(), now))).toEqual([null, "s1e1", "s2e2"]);
+    expect(ids(nextEpisode(seasons, new Set(["special"]), now))).toEqual([null, "s1e1", "s2e2"]);
+  });
+
+  it("has nothing upcoming when no future episode has an air date", () => {
+    const ended = [{ seasonNumber: 1, episodes: [ep("a", 1), ep("b", 2, null)] }];
+    expect(ids(nextEpisode(ended, new Set(["a"]), now))).toEqual(["a", null, null]);
   });
 
   it("skips unaired episodes to the next aired one", () => {
     const gap = [{ seasonNumber: 1, episodes: [ep("a", 1), ep("b", 2, FUTURE), ep("c", 3)] }];
-    expect(ids(nextEpisode(gap, new Set(["a"]), now))).toEqual(["a", "c"]);
+    expect(ids(nextEpisode(gap, new Set(["a"]), now))).toEqual(["a", "c", "b"]);
   });
 });
 

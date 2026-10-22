@@ -23,9 +23,16 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Sekmeler: İzlediğim Diziler (ilerlemeyle), İzlediğim Filmler, Favorilerim (Favori Diziler / Favori Filmler ayrı),
   Yorumlarım ("Sherlock — S1 B3: Büyük Oyun" bağlantısıyla), Daha Sonra İzle. Sekmeler tarayıcıda değişir,
   adres `?sekme=` ile güncellenir. Profil herkese açık (kişisel notlar hariç); başkasının profilinde spoiler'lar gizli.
-- **İzleme listem** (`/watchlist`): İzlemeye devam et (son izlenen bölüm, sıradaki bölüm ve tek tıkla işaretleme;
-  en son izlenen üstte) ve Daha sonra izle (Kaldır düğmesiyle). Ana sayfada ikisinin ilk 6'sı görünür.
-- Sıradaki bölüm: izlenen en ileri bölümden sonraki ilk yayınlanmış bölüm (`nextEpisode`, `src/lib/watch.ts`).
+- **İzleme listem** (`/watchlist`), ana sayfada da ilk 6'şar öğesi:
+  - **İzlemeye devam et:** başlanan diziler (son izlenen bölüm ve tarihi, sıradaki bölüm, tek tıkla işaretleme)
+    ve "Daha sonra izle" listesine eklenen diziler (ilk bölümden; Kaldır ile listeden çıkar). En son hareket üstte.
+  - **Yakında:** takip edilen dizilerin (izlenen ya da listedeki) sıradaki yayınlanmamış bölümü ve listedeki vizyona
+    girmemiş filmler, "Bugün / Yarın / 3 gün sonra" geri sayımıyla, en yakın üstte. Sayfa açılınca eskimiş takip
+    edilen diziler (en fazla 5) arka planda TMDB'den yenilenir, böylece yeni bölüm tarihleri gelir.
+  - **Daha sonra izle:** yukarıda görünmeyenler (filmler).
+- Sıradaki bölüm: izlenen en ileri bölümden sonraki ilk yayınlanmış bölüm; hiç izlenmemişse ilk yayınlanmış bölüm
+  (`nextEpisode`, `src/lib/watch.ts`).
+- İzlenme tarihi: bölüm/film sayfasındaki İzledin kutusunda ve dizi sayfasındaki bölüm satırlarında yazar.
 - Yorumlardaki kullanıcı adları profile bağlanır.
 
 ## Oyuncular

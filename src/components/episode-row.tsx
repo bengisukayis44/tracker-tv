@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Calendar, Clock, Star } from "lucide-react";
-import { episodeCode, formatDate, formatRuntime, type DisplayRating } from "@/lib/format";
+import { episodeCode, formatDate, formatRuntime, formatShortDate, type DisplayRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function EpisodeRow({
@@ -16,6 +16,7 @@ export function EpisodeRow({
   rating,
   aired,
   watched = false,
+  watchedAt,
   action,
 }: {
   href: string;
@@ -29,6 +30,8 @@ export function EpisodeRow({
   rating: DisplayRating | null;
   aired: boolean;
   watched?: boolean;
+  /** When the viewer marked it watched */
+  watchedAt?: Date;
   /** Rendered next to the link, e.g. the watch toggle (a button cannot live inside the link). */
   action?: React.ReactNode;
 }) {
@@ -83,7 +86,11 @@ export function EpisodeRow({
                 {formatRuntime(runtime)}
               </span>
             )}
-            {watched && <span className="font-semibold text-emerald-400">İzlendi</span>}
+            {watched && (
+              <span className="font-semibold text-emerald-400">
+                İzlendi{watchedAt && ` · ${formatShortDate(watchedAt)}`}
+              </span>
+            )}
             {!aired && (
               <span className="rounded border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 font-semibold text-orange-400">
                 Yayınlanmadı

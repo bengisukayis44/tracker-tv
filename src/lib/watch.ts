@@ -61,9 +61,10 @@ export function isSeasonWatched<E extends EpisodeLike>(
 }
 
 /**
- * "Kaldığın yer" (PROJE_PLANI.md §5): the furthest watched regular episode and the first aired episode after
- * it. `next` is null when the viewer has caught up (or nothing is watched); the series is then not
- * "İzlemeye devam et" material.
+ * "Kaldığın yer" (PROJE_PLANI.md §5): the furthest watched regular episode (`last`), the first aired episode
+ * after it (`next`; the very first aired episode when nothing is watched yet) and the first episode after it
+ * that has a known air date still to come (`upcoming`).
+ * `next` is null when the viewer has caught up with everything aired.
  */
 export function nextEpisode<E extends EpisodeLike>(
   seasons: SeasonLike<E>[],
@@ -75,7 +76,10 @@ export function nextEpisode<E extends EpisodeLike>(
   ordered.forEach(({ episode }, i) => {
     if (watched.has(episode.id)) lastIndex = i;
   });
-  if (lastIndex === -1) return { last: null, next: null };
-  const next = ordered.slice(lastIndex + 1).find(({ episode }) => isAired(episode, now)) ?? null;
-  return { last: ordered[lastIndex], next };
+  const after = ordered.slice(lastIndex + 1);
+  return {
+    last: lastIndex === -1 ? null : ordered[lastIndex],
+    next: after.find(({ episode }) => isAired(episode, now)) ?? null,
+    upcoming: after.find(({ episode }) => episode.airDate !== null && !isAired(episode, now)) ?? null,
+  };
 }
