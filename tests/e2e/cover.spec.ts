@@ -1,4 +1,4 @@
-import { withDb } from "./db";
+import { addToWatchlist, withDb } from "./db";
 import { expect, test } from "./fixtures";
 import { SHERLOCK } from "./helpers";
 
@@ -89,5 +89,66 @@ test.describe("Profil kapağı", () => {
     await page.goto("/settings");
     await page.getByRole("button", { name: "Kapak ekle" }).click();
     await expect(page.getByRole("dialog").getByText("Henüz bir dizi bölümü ya da film izlemedin.")).toBeVisible();
+  });
+
+  test("listedeki diziden karakter seçilir; kapak iki sayfa olur ve kaydırılır", async ({
+    signedInPage: page,
+    account,
+  }) => {
+    await watchSherlock(account.id);
+    // Breaking Bad is only on the watch-later list, which also counts
+    const breakingBad = await withDb(
+      async (db) => (await db.query(`SELECT "id" FROM "Title" WHERE "tmdbId" = 1396 AND "type" = 'SERIES'`)).rows[0].id,
+    );
+    await addToWatchlist(account.id, breakingBad);
+
+    await page.goto(`/profile/${account.username}`);
+    await page.getByRole("button", { name: "Karakter seç" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: SHERLOCK.name })).toBeVisible();
+    await dialog.getByRole("button", { name: "Breaking Bad" }).click();
+    await dialog.getByRole("button", { name: "Walter White (Bryan Cranston) karakterini seç" }).click();
+    await expect(page.getByText("Walter White kapağına eklendi.")).toBeVisible();
+
+    // Only the character so far: one page
+    await expect(page.getByText("Breaking Bad dizisinden · Bryan Cranston")).toBeVisible();
+    await expect(page.getByRole("button", { name: "2. sayfa" })).toHaveCount(0);
+
+    // With a scene too, the cover has two pages
+    await page.getByRole("button", { name: "Kapak ekle" }).click();
+    await dialog.getByRole("button", { name: SHERLOCK.name }).click();
+    await dialog
+      .getByRole("button", { name: /\. görseli kapak yap$/ })
+      .first()
+      .click();
+    await expect(page.getByText("Profil kapağın güncellendi.")).toBeVisible();
+    const first = page.getByRole("button", { name: "1. sayfa" });
+    const second = page.getByRole("button", { name: "2. sayfa" });
+    await expect(first).toHaveAttribute("aria-current", "true");
+    await second.click();
+    await expect(second).toHaveAttribute("aria-current", "true");
+    await expect(page.getByRole("img", { name: "Bryan Cranston" })).toBeInViewport();
+    // Back with the keyboard
+    await page.getByLabel("Profil kapağı, 2 sayfa; yana kaydır").focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(first).toHaveAttribute("aria-current", "true");
+
+    // Visitors see it too; a private profile hides it
+    const visitor = await page.context().browser()!.newPage({ baseURL: test.info().project.use.baseURL });
+    try {
+      await visitor.goto(`/profile/${account.username}`);
+      await expect(visitor.getByText("Breaking Bad dizisinden · Bryan Cranston")).toBeAttached();
+      await expect(visitor.getByRole("button", { name: "Karakteri değiştir" })).toHaveCount(0);
+      await withDb((db) => db.query(`UPDATE "User" SET "isPrivate" = true WHERE "id" = $1`, [account.id]));
+      await visitor.reload();
+      await expect(visitor.getByText("Walter White")).toHaveCount(0);
+    } finally {
+      await visitor.close();
+    }
+
+    await second.click();
+    await page.getByRole("button", { name: "Karakteri kaldır" }).click();
+    await expect(page.getByText("Kapaktaki karakter kaldırıldı.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "2. sayfa" })).toHaveCount(0);
   });
 });

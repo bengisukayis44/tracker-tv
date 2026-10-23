@@ -6,9 +6,10 @@ import { SpoilerBlur } from "@/components/comments/spoiler-blur";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
-import { CoverBanner } from "@/components/profile/cover-banner";
+import { CoverCharacterPicker } from "@/components/profile/cover-character-picker";
 import { CoverPicker } from "@/components/profile/cover-picker";
 import { FavoriteCharacters } from "@/components/profile/favorite-characters";
+import { ProfileCover } from "@/components/profile/profile-cover";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
 import { FollowButton } from "@/components/social/follow-button";
 import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
@@ -20,6 +21,7 @@ import { coverImageUrl } from "@/lib/cover";
 import { formatWatchTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  getCoverCharacter,
   getFavoriteCharacters,
   getFavorites,
   getProfileUser,
@@ -48,23 +50,29 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const follow = await getFollowState(user.id, viewer?.id ?? null);
 
   // The cover is part of the profile, so a private one keeps it to its owner
-  const cover = user.coverPath && (isMe || !user.isPrivate) ? coverImageUrl(user.coverPath) : null;
+  const visible = isMe || !user.isPrivate;
+  const cover = user.coverPath && visible ? coverImageUrl(user.coverPath) : null;
+  const character = visible ? await getCoverCharacter(user) : null;
+  const hasCover = Boolean(cover || character);
 
   const header = (
     <div>
-      {cover ? (
-        <CoverBanner src={cover} positionY={user.coverPositionY} editable={isMe}>
-          <CoverPicker hasCover />
-        </CoverBanner>
+      {hasCover ? (
+        <ProfileCover
+          scene={cover ? { src: cover, positionY: user.coverPositionY } : null}
+          character={character}
+          isMe={isMe}
+        />
       ) : (
         isMe && (
-          <div className="text-muted-foreground -mx-4 flex h-28 items-center justify-center border-y border-dashed sm:mx-0 sm:rounded-3xl sm:border">
+          <div className="text-muted-foreground -mx-4 flex h-28 flex-wrap items-center justify-center gap-2 border-y border-dashed sm:mx-0 sm:rounded-3xl sm:border">
             <CoverPicker hasCover={false} />
+            <CoverCharacterPicker hasCharacter={false} />
           </div>
         )
       )}
-      <header className={cn("relative flex flex-wrap items-center gap-4", cover && "-mt-10 sm:-mt-14 sm:px-6")}>
-        <Avatar className={cn("size-16 text-xl", cover && "ring-background size-20 ring-4 sm:size-24")}>
+      <header className={cn("relative flex flex-wrap items-center gap-4", hasCover && "-mt-10 sm:-mt-14 sm:px-6")}>
+        <Avatar className={cn("size-16 text-xl", hasCover && "ring-background size-20 ring-4 sm:size-24")}>
           {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
           <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>

@@ -43,7 +43,7 @@ export async function resetAccount(account: TestAccount) {
     await db.query(`DELETE FROM "Follow" WHERE "followerId" = $1 OR "followingId" = $1`, [account.id]);
     await db.query(`DELETE FROM "PushSubscription" WHERE "userId" = $1`, [account.id]);
     await db.query(
-      `UPDATE "User" SET "isPrivate" = false, "avatarUrl" = NULL, "coverPath" = NULL, "coverPositionY" = 50, "username" = $2 WHERE "id" = $1`,
+      `UPDATE "User" SET "isPrivate" = false, "avatarUrl" = NULL, "coverPath" = NULL, "coverPositionY" = 50, "coverCharacterTitleId" = NULL, "coverCharacterCastId" = NULL, "username" = $2 WHERE "id" = $1`,
       [account.id, account.username],
     );
   } finally {

@@ -101,7 +101,12 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   önce) ve **Bölüm kareleri** (veritabanındaki her bölümün karesi, izleme sırasıyla). İlk 10 görünür, "Daha fazla
   göster" her seferinde 20 ekler. Kapak bilgisayarda 3:1, telefonda 2:1 oranındadır; sahibi
   **Konumu ayarla** ile görseli yukarı aşağı sürükleyip (ya da ok düğmeleriyle) görünen kısmı seçer
-  (`User.coverPositionY`, 0 = üstü, 100 = altı). Kapak TMDB'nin özgün boyutuyla gösterilir. Küçük önizlemeler ve kapak doğrudan TMDB'den yüklenir (Vercel'in görsel
+  (`User.coverPositionY`, 0 = üstü, 100 = altı). Kapak TMDB'nin özgün boyutuyla gösterilir.
+- **Kapak karakteri:** kapak iki sayfa olabilir: sahne ve seçilen karakter (oyuncunun fotoğrafı büyük yuvarlak
+  ikon, "Sherlock Holmes · Sherlock dizisinden · Benedict Cumberbatch", arkada dizinin bulanık görseli). Karakter
+  izlenen ya da "Daha sonra izle" listesindeki dizi/filmlerin kadrosundan seçilir (`User.coverCharacterTitleId`,
+  `coverCharacterCastId`). Sayfalar telefonda kaydırılır; oklar, noktalar ve klavye de çalışır. Konum ayarlanırken
+  kaydırma kilitlenir; bir sayfa değişince o sayfa gösterilir. Küçük önizlemeler ve kapak doğrudan TMDB'den yüklenir (Vercel'in görsel
   optimizasyon kotasını harcamamak için). Yalnızca görselin TMDB yolu `User.coverPath`'te saklanır; sunucu görselin gerçekten o dizi/filme ait
   ve kullanıcının izlediği bir içerik olduğunu doğrular. Gizli profilde kapak başkalarına görünmez.
 - **Kullanıcı adı** değiştirilebilir (aynı kurallar, benzersiz); profil adresi ve girişte kullanılan ad değişir.

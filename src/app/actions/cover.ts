@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { parseCast, type CastMember } from "@/lib/cast";
 import { imagePathOf, isImagePath, orderCoverImages } from "@/lib/cover";
 import { episodeCode } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -19,15 +20,21 @@ export type CoverTitle = TitleInput & { name: string; posterUrl: string | null }
 export async function getCoverTitles(): Promise<ActionResult<{ titles: CoverTitle[] }>> {
   const user = await getCurrentUser();
   if (!user) return LOGIN_REQUIRED;
+  const titles = await watchedTitles(user.id);
+  return { ok: true, titles: titles.map(({ type, tmdbId, name, posterUrl }) => ({ type, tmdbId, name, posterUrl })) };
+}
+
+/** Watched series and movies with when they were last watched, most recent first. */
+async function watchedTitles(userId: string) {
   const [series, movies] = await Promise.all([
     prisma.$queryRaw<{ tmdbId: number; name: string; posterUrl: string | null; last: Date }[]>`
       SELECT t."tmdbId", t."name", t."posterUrl", MAX(w."watchedAt") AS last
       FROM "WatchedEpisode" w JOIN "Episode" e ON e."id" = w."episodeId"
       JOIN "Season" s ON s."id" = e."seasonId" JOIN "Title" t ON t."id" = s."titleId"
-      WHERE w."userId" = ${user.id} AND t."tmdbId" > 0
+      WHERE w."userId" = ${userId} AND t."tmdbId" > 0
       GROUP BY t."id"`,
     prisma.watchedMovie.findMany({
-      where: { userId: user.id, title: { tmdbId: { gt: 0 } } },
+      where: { userId, title: { tmdbId: { gt: 0 } } },
       select: { watchedAt: true, title: { select: { tmdbId: true, name: true, posterUrl: true } } },
     }),
   ]);
@@ -46,10 +53,8 @@ export async function getCoverTitles(): Promise<ActionResult<{ titles: CoverTitl
       posterUrl: m.title.posterUrl,
       last: m.watchedAt,
     })),
-  ]
-    .sort((a, b) => b.last.getTime() - a.last.getTime())
-    .map(({ type, tmdbId, name, posterUrl }) => ({ type, tmdbId, name, posterUrl }));
-  return { ok: true, titles };
+  ];
+  return titles.sort((a, b) => b.last.getTime() - a.last.getTime());
 }
 
 /** Did the user watch this (an episode of the series, or the movie)? Only those can be the cover. */
@@ -141,6 +146,86 @@ export async function removeCover(): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return LOGIN_REQUIRED;
   await prisma.user.update({ where: { id: user.id }, data: { coverPath: null } });
+  revalidatePath(`/profile/${user.username}`);
+  return { ok: true };
+}
+
+// ---------- Cover character (the cover's second page) ----------
+
+/** Watched series and movies, then those on the watch-later list: the cover character is picked from these. */
+export async function getCharacterTitles(): Promise<ActionResult<{ titles: CoverTitle[] }>> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const [watched, listed] = await Promise.all([
+    watchedTitles(user.id),
+    prisma.watchlistItem.findMany({
+      where: { userId: user.id, title: { tmdbId: { gt: 0 } } },
+      orderBy: { addedAt: "desc" },
+      select: { title: { select: { type: true, tmdbId: true, name: true, posterUrl: true } } },
+    }),
+  ]);
+  const seen = new Set<string>();
+  const titles = [
+    ...watched,
+    ...listed.map(({ title }) => ({
+      type: title.type,
+      tmdbId: title.tmdbId!,
+      name: title.name,
+      posterUrl: title.posterUrl,
+    })),
+  ]
+    .filter((t) => !seen.has(`${t.type}-${t.tmdbId}`) && seen.add(`${t.type}-${t.tmdbId}`))
+    .map(({ type, tmdbId, name, posterUrl }) => ({ type, tmdbId, name, posterUrl }));
+  return { ok: true, titles };
+}
+
+/** The title if the user watched it or has it on the watch-later list. */
+async function titleOnLists(userId: string, input: TitleInput) {
+  const title = await prisma.title.findFirst({
+    where: { tmdbId: input.tmdbId, type: input.type },
+    select: { id: true, castMembers: true },
+  });
+  if (!title) return null;
+  const listed = await prisma.watchlistItem.findUnique({ where: { userId_titleId: { userId, titleId: title.id } } });
+  return listed || (await hasWatched(userId, input)) ? title : null;
+}
+
+const NOT_ON_LISTS = { ok: false, error: "Karakter yalnızca listendeki dizi ve filmlerden seçilebilir." } as const;
+
+/** The cast of a series or movie on the user's lists, to pick the cover character from. */
+export async function getCharacterChoices(input: TitleInput): Promise<ActionResult<{ cast: CastMember[] }>> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const parsed = titleSchema.safeParse(input);
+  const title = parsed.success ? await titleOnLists(user.id, parsed.data) : null;
+  if (!title) return NOT_ON_LISTS;
+  return { ok: true, cast: parseCast(title.castMembers) };
+}
+
+export async function setCoverCharacter(input: TitleInput & { castId: number }): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  const parsed = titleSchema.safeParse(input);
+  const title = parsed.success ? await titleOnLists(user.id, parsed.data) : null;
+  if (!title) return NOT_ON_LISTS;
+  if (!parseCast(title.castMembers).some((m) => m.id === input.castId)) {
+    return { ok: false, error: "Bu karakter oyuncu kadrosunda yok." };
+  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { coverCharacterTitleId: title.id, coverCharacterCastId: input.castId },
+  });
+  revalidatePath(`/profile/${user.username}`);
+  return { ok: true };
+}
+
+export async function removeCoverCharacter(): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { coverCharacterTitleId: null, coverCharacterCastId: null },
+  });
   revalidatePath(`/profile/${user.username}`);
   return { ok: true };
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CoverCharacterPicker } from "@/components/profile/cover-character-picker";
 import { CoverPicker } from "@/components/profile/cover-picker";
 import { getCurrentUser } from "@/lib/auth";
 import { coverImageUrl } from "@/lib/cover";
@@ -14,9 +15,9 @@ export const metadata: Metadata = { title: "Ayarlar" };
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent("/settings")}`);
-  const { isPrivate, coverPath, coverPositionY } = await prisma.user.findUniqueOrThrow({
+  const { isPrivate, coverPath, coverPositionY, coverCharacterTitleId } = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
-    select: { isPrivate: true, coverPath: true, coverPositionY: true },
+    select: { isPrivate: true, coverPath: true, coverPositionY: true, coverCharacterTitleId: true },
   });
 
   return (
@@ -52,7 +53,13 @@ export default async function SettingsPage() {
               İzlediğin bir dizi ya da filmden bir sahne seç; profilinin üstünde görünür.
             </p>
           )}
-          <CoverPicker hasCover={Boolean(coverPath)} />
+          <div className="flex flex-wrap gap-2">
+            <CoverPicker hasCover={Boolean(coverPath)} />
+            <CoverCharacterPicker hasCharacter={Boolean(coverCharacterTitleId)} />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Karakter seçersen kapak iki sayfa olur: sahne ve karakterin; profilinde yana kaydırılır.
+          </p>
         </div>
       </Card>
       <Card title="Kullanıcı adı">

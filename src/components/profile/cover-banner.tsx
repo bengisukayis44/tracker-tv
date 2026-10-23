@@ -7,28 +7,32 @@ import { ArrowDown, ArrowUp, Check, Loader2, Move, X } from "lucide-react";
 import { toast } from "sonner";
 import { setCoverPosition } from "@/app/actions/cover";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 const clamp = (n: number) => Math.min(100, Math.max(0, n));
 const STEP = 5;
 
 /**
- * The profile cover. Its owner can "Konumu ayarla": drag the image up or down (or use the arrow buttons)
- * to pick which part shows, then save. The position is a 0–100 object-position.
+ * The cover's scene page (fills its slide). Its owner can "Konumu ayarla": drag the image up or down (or use
+ * the arrow buttons) to pick which part shows, then save. The position is a 0–100 object-position.
  */
 export function CoverBanner({
   src,
   positionY,
   editable,
+  editing,
+  onEditingChange,
   children,
 }: {
   src: string;
   positionY: number;
   editable: boolean;
-  /** Owner's other buttons (change/remove cover) */
+  /** Kept by the cover frame, which stops sideways swiping meanwhile */
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  /** Owner's other buttons (change/remove cover, pick a character) */
   children?: React.ReactNode;
 }) {
-  const [editing, setEditing] = useState(false);
+  const setEditing = onEditingChange;
   const [y, setY] = useState(positionY);
   const [dragging, setDragging] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -78,11 +82,7 @@ export function CoverBanner({
   return (
     <div
       ref={container}
-      className={cn(
-        "bg-muted relative -mx-4 aspect-[2/1] overflow-hidden select-none sm:mx-0 sm:aspect-[3/1] sm:rounded-3xl",
-        // Above the name row that overlaps the cover's bottom edge, so nothing covers the controls
-        editing && "z-10",
-      )}
+      className="relative h-full w-full shrink-0 snap-center overflow-hidden select-none"
       style={editing ? { cursor: dragging ? "grabbing" : "grab", touchAction: "none" } : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

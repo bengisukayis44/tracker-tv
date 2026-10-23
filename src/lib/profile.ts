@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { parseCast } from "@/lib/cast";
+import { characterLabel, parseCast } from "@/lib/cast";
 import { isStale, titleHref } from "@/lib/catalog";
 import { formatCommentTime } from "@/lib/comments";
 import { episodeCode } from "@/lib/format";
@@ -22,6 +22,8 @@ export const getProfileUser = cache((username: string) =>
       isPrivate: true,
       coverPath: true,
       coverPositionY: true,
+      coverCharacterTitleId: true,
+      coverCharacterCastId: true,
       createdAt: true,
     },
   }),
@@ -352,3 +354,27 @@ export async function getFavoriteCharacters(userId: string) {
 }
 
 export type FavoriteCharacter = Awaited<ReturnType<typeof getFavoriteCharacters>>[number];
+
+/** The cover's character page: the picked character with the actor's photo (large) and the title's image. */
+export async function getCoverCharacter(user: {
+  coverCharacterTitleId: string | null;
+  coverCharacterCastId: number | null;
+}) {
+  if (!user.coverCharacterTitleId || user.coverCharacterCastId === null) return null;
+  const title = await prisma.title.findUnique({
+    where: { id: user.coverCharacterTitleId },
+    select: { tmdbId: true, type: true, name: true, backdropUrl: true, castMembers: true },
+  });
+  const member = title && parseCast(title.castMembers).find((m) => m.id === user.coverCharacterCastId);
+  if (!title || title.tmdbId === null || !member) return null;
+  return {
+    character: characterLabel(member),
+    actorName: member.name,
+    // The stored w185 photo is too small for the big round icon; TMDB also has h632 of the same image
+    photoUrl: member.profileUrl?.replace("/w185/", "/h632/") ?? null,
+    titleName: title.name,
+    from: title.type === "MOVIE" ? "filminden" : "dizisinden",
+    href: titleHref(title.type, title.tmdbId),
+    backdropUrl: title.backdropUrl,
+  };
+}
