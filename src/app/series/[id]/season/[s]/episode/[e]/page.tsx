@@ -6,6 +6,7 @@ import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { CommentSection } from "@/components/comments/comment-section";
 import { CommunityStats } from "@/components/community-stats";
 import { RatingBadge } from "@/components/rating-badge";
+import { NextEpisodeShortcut } from "@/components/watch/next-episode-shortcut";
 import { WatchPanel } from "@/components/watch/watch-panel";
 import { getCurrentUser } from "@/lib/auth";
 import { parseCast } from "@/lib/cast";
@@ -44,10 +45,17 @@ export default async function EpisodePage({ params }: Props) {
   const { id, series, season, episode, previous, next } = loaded;
   const aired = isAired(episode);
   const commentTarget = { kind: "episode", episodeId: episode.id } as const;
-  const [watch, comments, community] = await Promise.all([
+  // The next episode itself (the neighbour ref has no id), for "Sonraki bölümü izledim"
+  const nextEpisode =
+    next &&
+    series.seasons
+      .find((s) => s.seasonNumber === next.seasonNumber)
+      ?.episodes.find((e) => e.episodeNumber === next.episodeNumber);
+  const [watch, comments, community, nextWatch] = await Promise.all([
     user ? getEpisodeWatch(user.id, episode.id) : null,
     getComments(commentTarget, user?.id ?? null),
     getCommunityStats(commentTarget),
+    user && nextEpisode ? getEpisodeWatch(user.id, nextEpisode.id) : null,
   ]);
   const cast = parseCast(series.castMembers);
   const seasonLabel = season.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${season.seasonNumber}`;
@@ -98,6 +106,17 @@ export default async function EpisodePage({ params }: Props) {
         watch={watch}
         cast={cast}
       />
+
+      {next && nextEpisode && isAired(nextEpisode) && (
+        <NextEpisodeShortcut
+          episodeId={nextEpisode.id}
+          code={episodeCode(next.seasonNumber, next.episodeNumber)}
+          name={next.name}
+          href={`/series/${id}/season/${next.seasonNumber}/episode/${next.episodeNumber}`}
+          watched={nextWatch !== null}
+          signedIn={user !== null}
+        />
+      )}
 
       <CommunityStats stats={community} cast={cast} />
 

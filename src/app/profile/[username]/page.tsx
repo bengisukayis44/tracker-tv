@@ -8,6 +8,7 @@ import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 import { CoverBanner } from "@/components/profile/cover-banner";
 import { CoverPicker } from "@/components/profile/cover-picker";
+import { FavoriteCharacters } from "@/components/profile/favorite-characters";
 import { SeriesProgressCard } from "@/components/profile/series-progress-card";
 import { FollowButton } from "@/components/social/follow-button";
 import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-button";
@@ -19,6 +20,7 @@ import { coverImageUrl } from "@/lib/cover";
 import { formatWatchTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  getFavoriteCharacters,
   getFavorites,
   getProfileUser,
   getSeriesProgress,
@@ -114,13 +116,14 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     );
   }
 
-  const [stats, series, movies, favorites, comments, watchlist] = await Promise.all([
+  const [stats, series, movies, favorites, comments, watchlist, characters] = await Promise.all([
     getWatchStats(user.id),
     getSeriesProgress(user.id),
     getWatchedMovies(user.id),
     getFavorites(user.id),
     getUserComments(user.id),
     getWatchlist(user.id),
+    getFavoriteCharacters(user.id),
   ]);
   const favoriteSeries = favorites.filter((f) => f.title.type === "SERIES");
   const favoriteMovies = favorites.filter((f) => f.title.type === "MOVIE");
@@ -146,6 +149,8 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           detail={withRewatches(`${stats.movieCount} film`, stats.movieRewatches)}
         />
       </section>
+
+      <FavoriteCharacters characters={characters} isMe={isMe} />
 
       <ProfileTabs
         initial={sekme ?? "diziler"}

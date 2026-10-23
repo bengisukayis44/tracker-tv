@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { isStale } from "@/lib/catalog";
+import { parseCast } from "@/lib/cast";
+import { isStale, titleHref } from "@/lib/catalog";
 import { formatCommentTime } from "@/lib/comments";
 import { episodeCode } from "@/lib/format";
 import { nextEpisode, watchProgress } from "@/lib/watch";
@@ -14,7 +15,15 @@ import { nextEpisode, watchProgress } from "@/lib/watch";
 export const getProfileUser = cache((username: string) =>
   prisma.user.findUnique({
     where: { username },
-    select: { id: true, username: true, avatarUrl: true, isPrivate: true, coverPath: true, coverPositionY: true, createdAt: true },
+    select: {
+      id: true,
+      username: true,
+      avatarUrl: true,
+      isPrivate: true,
+      coverPath: true,
+      coverPositionY: true,
+      createdAt: true,
+    },
   }),
 );
 
@@ -156,9 +165,7 @@ export type SeriesProgress = TrackedSeries;
  * list from their first episode.
  */
 export async function getContinueWatching(userId: string) {
-  return (await getTrackedSeries(userId)).filter(
-    (s): s is TrackedSeries & { next: EpisodeLink } => s.next !== null,
-  );
+  return (await getTrackedSeries(userId)).filter((s): s is TrackedSeries & { next: EpisodeLink } => s.next !== null);
 }
 
 export type UpcomingItem = {
@@ -277,7 +284,11 @@ export async function getUserComments(userId: string) {
           episodeLabel: `S${ep.season.seasonNumber} B${ep.episodeNumber}: ${ep.name}`,
           href: `/series/${ep.season.title.tmdbId}/season/${ep.season.seasonNumber}/episode/${ep.episodeNumber}`,
         }
-      : { titleName: c.title?.name ?? "Silinmiş içerik", episodeLabel: null, href: c.title ? `/movie/${c.title.tmdbId}` : "/" };
+      : {
+          titleName: c.title?.name ?? "Silinmiş içerik",
+          episodeLabel: null,
+          href: c.title ? `/movie/${c.title.tmdbId}` : "/",
+        };
     return {
       id: c.id,
       content: c.content,
@@ -291,3 +302,53 @@ export async function getUserComments(userId: string) {
 }
 
 export type ProfileComment = Awaited<ReturnType<typeof getUserComments>>[number];
+
+// Enough for a row on the profile
+const FAVORITE_CHARACTER_LIMIT = 10;
+
+/**
+ * "En sevdiğin karakterler": the characters picked as favourite most often across the user's watched
+ * episodes and movies, per series/movie, with the actor's photo from that title's cast.
+ */
+export async function getFavoriteCharacters(userId: string) {
+  const rows = await prisma.$queryRaw<
+    { titleId: string; castId: number; character: string; picks: bigint; last: Date }[]
+  >`
+    SELECT "titleId", "castId", MAX("character") AS character, COUNT(*) AS picks, MAX("at") AS last
+    FROM (
+      SELECT s."titleId", w."favoriteCastId" AS "castId", w."favoriteCharacter" AS character, w."watchedAt" AS at
+      FROM "WatchedEpisode" w JOIN "Episode" e ON e."id" = w."episodeId" JOIN "Season" s ON s."id" = e."seasonId"
+      WHERE w."userId" = ${userId} AND w."favoriteCastId" IS NOT NULL
+      UNION ALL
+      SELECT w."titleId", w."favoriteCastId", w."favoriteCharacter", w."watchedAt"
+      FROM "WatchedMovie" w
+      WHERE w."userId" = ${userId} AND w."favoriteCastId" IS NOT NULL
+    ) picks
+    GROUP BY "titleId", "castId"
+    ORDER BY picks DESC, last DESC
+    LIMIT ${FAVORITE_CHARACTER_LIMIT}`;
+  if (rows.length === 0) return [];
+
+  const titles = await prisma.title.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.titleId))] } },
+    select: { id: true, tmdbId: true, type: true, name: true, castMembers: true },
+  });
+  const byId = new Map(titles.map((t) => [t.id, t]));
+  return rows.flatMap((row) => {
+    const title = byId.get(row.titleId);
+    if (!title || title.tmdbId === null) return [];
+    const actor = parseCast(title.castMembers).find((m) => m.id === row.castId);
+    return [
+      {
+        key: `${row.titleId}-${row.castId}`,
+        character: row.character,
+        actorName: actor?.name ?? null,
+        photoUrl: actor?.profileUrl ?? null,
+        picks: Number(row.picks),
+        title: { name: title.name, type: title.type, href: titleHref(title.type, title.tmdbId) },
+      },
+    ];
+  });
+}
+
+export type FavoriteCharacter = Awaited<ReturnType<typeof getFavoriteCharacters>>[number];
