@@ -45,10 +45,22 @@ export function Discover({ lists, discussed }: { lists: DiscoverLists; discussed
   );
 }
 
-function TitleRow({ id, title, items }: { id: string; title: string; items: SearchResult[] }) {
+export function TitleRow({
+  id,
+  title,
+  reason,
+  items,
+}: {
+  id: string;
+  title: string;
+  /** Why this row is shown, under the heading */
+  reason?: string;
+  /** `note` replaces the year and genre under the poster (e.g. the character played) */
+  items: (SearchResult & { note?: string })[];
+}) {
   if (items.length === 0) return null;
   return (
-    <Row id={id} title={title}>
+    <Row id={id} title={title} reason={reason}>
       {items.map((item) => (
         <li key={`${item.type}-${item.tmdbId}`} className="w-36 shrink-0 sm:w-40">
           <PosterCard
@@ -56,7 +68,9 @@ function TitleRow({ id, title, items }: { id: string; title: string; items: Sear
             title={item.name}
             posterUrl={item.posterUrl}
             rating={pickRating(item.imdbRating, item.sourceRating)}
-            subtitle={[item.year, item.genres[0] && genreLabel(item.genres[0])].filter(Boolean).join(" · ")}
+            subtitle={
+              item.note ?? [item.year, item.genres[0] && genreLabel(item.genres[0])].filter(Boolean).join(" · ")
+            }
           />
         </li>
       ))}
@@ -65,12 +79,25 @@ function TitleRow({ id, title, items }: { id: string; title: string; items: Sear
 }
 
 /** A titled row that scrolls sideways. */
-function Row({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Row({
+  id,
+  title,
+  reason,
+  children,
+}: {
+  id: string;
+  title: string;
+  reason?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section aria-labelledby={id} className="space-y-4">
-      <h2 id={id} className="text-xl font-bold">
-        {title}
-      </h2>
+      <div className="space-y-0.5">
+        <h2 id={id} className="text-xl font-bold">
+          {title}
+        </h2>
+        {reason && <p className="text-muted-foreground text-sm">{reason}</p>}
+      </div>
       <ScrollRow label={title} className="-mx-4 gap-3 rounded-lg px-4 pb-2 sm:mx-0 sm:px-0">
         {children}
       </ScrollRow>

@@ -343,6 +343,7 @@ export async function getFavoriteCharacters(userId: string) {
     return [
       {
         key: `${row.titleId}-${row.castId}`,
+        castId: row.castId,
         character: row.character,
         actorName: actor?.name ?? null,
         photoUrl: actor?.profileUrl ?? null,

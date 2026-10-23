@@ -122,6 +122,15 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - **Ana sayfa (herkese):** "En çok konuşulanlar" (son 30 günde en çok yorum alan bölüm/filmler), TMDB'den
   "Bu hafta popüler diziler / filmler" ve "Vizyonda" (Türkiye). TMDB listeleri Next.js önbelleğinde 6 saat tutulur;
   TMDB 4 sn'de yanıt vermezse bu satırlar gizlenir ve sonraki ziyarette tekrar denenir.
+- **Sana özel öneriler** (ana sayfa, giriş yapınca; `src/lib/recommendations.ts`, kurallar `src/lib/recommend.ts`):
+  - *Sana özel:* izlenenlerin türleri ağırlıklı sayılır (çok bölüm ve yüksek puan daha ağır), en sevilen 3 türde TMDB
+    discover'dan popüler dizi ve filmler ("Dram, Gizem ve Suç sevdiğin için"). Dizi/film tür adları eşlenir.
+  - *"X izleyenler bunları da sevdi":* yüksek puanlı (≥8) ya da son izlenen 5 yapımdan biri (her gün farklısı) için
+    TMDB önerileri.
+  - *"Oyuncu başka nerelerde oynadı?":* en çok seçilen favori karakterin oyuncusunun diğer işleri (sohbet/haber
+    programları ve "kendisi" rolleri hariç, en bilinenler önce), kartta oynadığı karakter.
+  - *Arkadaşların izliyor:* takip edilen herkese açık kişilerin son 30 günde izledikleri, "N arkadaşın izledi".
+  - İzlenen ve listedekiler önerilmez; TMDB yanıtları 6 saat önbellekte; yanıt gelmeyen ya da boş kalan satır gizlenir.
 - **Topluluk** (bölüm ve film sayfası): kaç kişinin izlediği, ortalama puan, duyguların izleyenlere oranı ve en sevilen
   5 karakter. Kişisel notlar okunmaz.
 - **Nerede izlenir** (dizi ve film sayfası): Türkiye'deki platformlar (abonelik, ücretsiz, kiralama, satın alma),

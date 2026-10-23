@@ -58,7 +58,7 @@ function genreNames(ids: number[], genres: Map<number, string>) {
   return ids.map((id) => genres.get(id)).filter((g): g is string => Boolean(g));
 }
 
-function movieSearchResult(item: TmdbMovieSearchItem, genres: Map<number, string>): SearchResult {
+export function movieSearchResult(item: TmdbMovieSearchItem, genres: Map<number, string>): SearchResult {
   return {
     tmdbId: item.id,
     type: "MOVIE",
@@ -73,7 +73,7 @@ function movieSearchResult(item: TmdbMovieSearchItem, genres: Map<number, string
   };
 }
 
-function toSearchResult(item: TmdbTvSearchItem, genres: Map<number, string>): SearchResult {
+export function toSearchResult(item: TmdbTvSearchItem, genres: Map<number, string>): SearchResult {
   return {
     tmdbId: item.id,
     type: "SERIES",

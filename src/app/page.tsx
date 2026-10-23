@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { Discover } from "@/components/discover";
+import { Discover, TitleRow } from "@/components/discover";
 import { WatchLists } from "@/components/profile/watch-lists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDiscoverLists, refreshSeries } from "@/lib/catalog";
 import { getMostDiscussed } from "@/lib/comment-data";
+import { getRecommendations } from "@/lib/recommendations";
 import { getContinueWatching, getUpcoming, getWatchlist, staleTrackedSeries } from "@/lib/profile";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const [personal, discover, discussed] = await Promise.all([
+  const [personal, recommendations, discover, discussed] = await Promise.all([
     user
       ? Promise.all([
           getContinueWatching(user.id),
@@ -20,6 +21,7 @@ export default async function HomePage() {
           staleTrackedSeries(user.id),
         ])
       : null,
+    user ? getRecommendations(user.id) : [],
     getDiscoverLists(),
     getMostDiscussed(),
   ]);
@@ -61,8 +63,10 @@ export default async function HomePage() {
       {personal && (
         <WatchLists continueWatching={personal[0]} upcoming={personal[1]} watchlist={personal[2]} limit={6} />
       )}
+      {recommendations.map((row) => (
+        <TitleRow key={row.id} id={`rec-${row.id}`} title={row.title} reason={row.reason} items={row.items} />
+      ))}
       <Discover lists={discover} discussed={discussed} />
     </div>
   );
 }
-

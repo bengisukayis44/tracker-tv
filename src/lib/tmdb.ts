@@ -82,6 +82,11 @@ export type TmdbMovieSearchItem = {
   genre_ids: number[];
 };
 
+/** /person/{id}/combined_credits cast entry: a series or movie with the character played. */
+export type TmdbPersonCredit =
+  | (TmdbTvSearchItem & { media_type: "tv"; character: string | null; popularity: number; episode_count?: number })
+  | (TmdbMovieSearchItem & { media_type: "movie"; character: string | null; popularity: number });
+
 /** /search/multi result: series and movies (people are filtered out). */
 export type TmdbMultiSearchItem =
   | (TmdbTvSearchItem & { media_type: "tv" })
@@ -295,6 +300,48 @@ export const tmdb = {
       options,
     );
     return data.backdrops;
+  },
+
+  /** Popular, well-rated series or movies in any of the genres (TMDB discover). */
+  async discover<K extends "tv" | "movie">(
+    kind: K,
+    genreIds: number[],
+    options?: TmdbRequestOptions,
+  ): Promise<(K extends "tv" ? TmdbTvSearchItem : TmdbMovieSearchItem)[]> {
+    const data = await tmdbFetch<{ results: (K extends "tv" ? TmdbTvSearchItem : TmdbMovieSearchItem)[] }>(
+      `/discover/${kind}`,
+      {
+        language: LANGUAGE,
+        // "|" is OR: any of the user's favourite genres
+        with_genres: genreIds.join("|"),
+        sort_by: "popularity.desc",
+        "vote_count.gte": kind === "tv" ? "150" : "400",
+        include_adult: "false",
+        page: "1",
+      },
+      options,
+    );
+    return data.results.filter((r) => !r.adult);
+  },
+
+  /** TMDB's "if you liked this" list for a series or movie. */
+  async recommendations(kind: "tv" | "movie", id: number, options?: TmdbRequestOptions) {
+    const data = await tmdbFetch<{ results: Exclude<TmdbMultiSearchItem, { media_type: "person" }>[] }>(
+      `/${kind}/${id}/recommendations`,
+      { language: LANGUAGE, page: "1" },
+      options,
+    );
+    return data.results.filter((r) => (r.media_type === "tv" || r.media_type === "movie") && !r.adult);
+  },
+
+  /** Everything an actor played in, with the character, series and movies together. */
+  async personCredits(personId: number, options?: TmdbRequestOptions): Promise<TmdbPersonCredit[]> {
+    const data = await tmdbFetch<{ cast: TmdbPersonCredit[] }>(
+      `/person/${personId}/combined_credits`,
+      { language: LANGUAGE },
+      options,
+    );
+    return data.cast.filter((c) => (c.media_type === "tv" || c.media_type === "movie") && !c.adult);
   },
 
   /** Genre id → Turkish name, fetched once per server instance. */
