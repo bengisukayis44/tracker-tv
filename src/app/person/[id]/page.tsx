@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertCircle, ExternalLink, UserRound } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
@@ -7,7 +8,8 @@ import { PosterCard } from "@/components/poster-card";
 import { ExpandableGrid, ShowMoreText } from "@/components/show-more";
 import { getCurrentUser } from "@/lib/auth";
 import { titleHref } from "@/lib/catalog";
-import { formatDate } from "@/lib/format";
+import type { Appearance } from "@/lib/appearance";
+import { episodeCode, formatDate } from "@/lib/format";
 import { getPerson, watchedAmong, type PersonPage } from "@/lib/person";
 import { TmdbError } from "@/lib/tmdb";
 
@@ -82,14 +84,16 @@ export default async function PersonPageView({ params }: Props) {
           className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
         >
           {list.map((c) => (
-            <PosterCard
-              key={`${c.type}-${c.tmdbId}`}
-              href={titleHref(c.type, c.tmdbId)}
-              title={c.name}
-              posterUrl={c.posterUrl}
-              badge={watched.has(`${c.type}-${c.tmdbId}`) ? "İzledin" : null}
-              subtitle={[c.characters.join(" / "), c.year].filter(Boolean).join(" · ")}
-            />
+            <div key={`${c.type}-${c.tmdbId}`} className="space-y-1.5">
+              <PosterCard
+                href={titleHref(c.type, c.tmdbId)}
+                title={c.name}
+                posterUrl={c.posterUrl}
+                badge={watched.has(`${c.type}-${c.tmdbId}`) ? "İzledin" : null}
+                subtitle={[c.characters.join(" / "), c.year].filter(Boolean).join(" · ")}
+              />
+              {c.appearance && <AppearanceLines tmdbId={c.tmdbId} appearance={c.appearance} />}
+            </div>
           ))}
         </ExpandableGrid>
       </section>
@@ -142,5 +146,29 @@ export default async function PersonPageView({ params }: Props) {
       {section("Diziler", series)}
       {section("Filmler", movies)}
     </div>
+  );
+}
+
+/** Under a series card: the guest episodes (each linked) or the seasons the actor is in. */
+function AppearanceLines({ tmdbId, appearance }: { tmdbId: number; appearance: Appearance }) {
+  if (appearance.kind !== "episodes") {
+    return appearance.text ? <p className="text-muted-foreground px-1 text-xs">{appearance.text}</p> : null;
+  }
+  return (
+    <ul aria-label="Oynadığı bölümler" className="space-y-0.5 px-1">
+      {appearance.episodes.map((e) => (
+        <li key={`${e.season}-${e.episode}`} className="truncate text-xs">
+          <Link
+            href={`/series/${tmdbId}/season/${e.season}/episode/${e.episode}`}
+            // Many of these on one page; no need to load each episode in advance
+            prefetch={false}
+            className="text-muted-foreground hover:text-primary"
+          >
+            <span className="text-foreground font-semibold">{episodeCode(e.season, e.episode)}</span>
+            {e.name && ` · ${e.name}`}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

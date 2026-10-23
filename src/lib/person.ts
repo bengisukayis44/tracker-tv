@@ -1,8 +1,9 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { describeAppearance, type Appearance, type AppearanceEpisode } from "@/lib/appearance";
 import { rankCredits } from "@/lib/recommend";
-import { cleanText, tmdb, tmdbImage } from "@/lib/tmdb";
+import { cleanText, isPlaceholderEpisodeName, tmdb, tmdbImage } from "@/lib/tmdb";
 
 /** An actor's page data (`/person/[id]`), straight from TMDB and cached for a day. */
 async function fetchPerson(personId: number) {
@@ -19,6 +20,8 @@ async function fetchPerson(personId: number) {
       characters: string[];
       voteCount: number;
       episodeCount: number | null;
+      /** TMDB credit ids of every role in it, for the episode details */
+      creditIds: string[];
     }
   >();
   for (const c of rankCredits(person.combined_credits?.cast ?? [])) {
@@ -29,6 +32,7 @@ async function fetchPerson(personId: number) {
     if (existing) {
       // Another role in the same series: its episodes count too
       if (character && !existing.characters.includes(character)) existing.characters.push(character);
+      existing.creditIds.push(c.credit_id);
       if (c.media_type === "tv") existing.episodeCount = (existing.episodeCount ?? 0) + (c.episode_count ?? 0);
       continue;
     }
@@ -42,8 +46,15 @@ async function fetchPerson(personId: number) {
       characters: character ? [character] : [],
       voteCount: c.vote_count,
       episodeCount: c.media_type === "tv" ? (c.episode_count ?? null) : null,
+      creditIds: [c.credit_id],
     });
   }
+  const appearances = await seriesAppearances([...byKey.values()].filter((c) => c.type === "SERIES"));
+  // Series only: a movie can have the same TMDB id as a series
+  const withAppearance = <T extends { tmdbId: number }>(c: T) => ({
+    ...c,
+    appearance: appearances.get(c.tmdbId) ?? null,
+  });
   return {
     id: person.id,
     name: person.name,
@@ -58,14 +69,76 @@ async function fetchPerson(personId: number) {
       // Series by how many episodes they are in (a one-episode guest spot in a famous show comes later), then fame
       ...[...byKey.values()]
         .filter((c) => c.type === "SERIES")
+        .map(withAppearance)
         .sort((a, b) => (b.episodeCount ?? 1) - (a.episodeCount ?? 1) || b.voteCount - a.voteCount),
       // Movies by fame (rankCredits order)
-      ...[...byKey.values()].filter((c) => c.type === "MOVIE"),
+      ...[...byKey.values()].filter((c) => c.type === "MOVIE").map((c) => ({ ...c, appearance: null })),
     ],
   };
 }
 
-export const getPerson = unstable_cache(fetchPerson, ["person-v3"], { revalidate: 24 * 60 * 60 });
+// Detail requests at a time (an actor can have dozens of series roles)
+const DETAIL_CONCURRENCY = 8;
+
+/**
+ * Which episodes or seasons the actor is in, per series (TMDB tmdbId → Appearance). Listed episodes get their
+ * Turkish name and a link when the series is stored here. A role whose details do not arrive keeps only its count.
+ */
+async function seriesAppearances(series: { tmdbId: number; creditIds: string[]; episodeCount: number | null }[]) {
+  const jobs = series.flatMap((s) => s.creditIds.map((creditId) => ({ tmdbId: s.tmdbId, creditId })));
+  const details = new Map<number, { episodes: AppearanceEpisode[]; seasons: number[] }>();
+  for (let i = 0; i < jobs.length; i += DETAIL_CONCURRENCY) {
+    await Promise.all(
+      jobs.slice(i, i + DETAIL_CONCURRENCY).map(async ({ tmdbId, creditId }) => {
+        try {
+          const { media } = await tmdb.creditDetails(creditId, { timeoutMs: 4_000, retries: 0 });
+          const entry = details.get(tmdbId) ?? { episodes: [], seasons: [] };
+          for (const e of media.episodes ?? []) {
+            // "15. Bölüm"-like placeholders add nothing next to the code
+            const name = isPlaceholderEpisodeName(e.name) ? "" : (cleanText(e.name) ?? "");
+            entry.episodes.push({ season: e.season_number, episode: e.episode_number, name });
+          }
+          for (const season of media.seasons ?? []) entry.seasons.push(season.season_number);
+          details.set(tmdbId, entry);
+        } catch {
+          // Only the episode count is shown for this role
+        }
+      }),
+    );
+  }
+
+  const result = new Map<number, Appearance>();
+  for (const s of series) {
+    const d = details.get(s.tmdbId) ?? { episodes: [], seasons: [] };
+    result.set(s.tmdbId, describeAppearance({ ...d, episodeCount: s.episodeCount }));
+  }
+
+  // Turkish names for the listed episodes of series stored here
+  const listed = [...result.entries()].filter(([, a]) => a.kind === "episodes");
+  if (listed.length) {
+    const stored = await prisma.episode.findMany({
+      where: { season: { title: { type: "SERIES", tmdbId: { in: listed.map(([id]) => id) } } } },
+      select: {
+        episodeNumber: true,
+        name: true,
+        season: { select: { seasonNumber: true, title: { select: { tmdbId: true } } } },
+      },
+    });
+    const names = new Map(
+      stored.map((e) => [`${e.season.title.tmdbId}-${e.season.seasonNumber}-${e.episodeNumber}`, e.name]),
+    );
+    for (const [tmdbId, appearance] of listed) {
+      if (appearance.kind !== "episodes") continue;
+      for (const e of appearance.episodes) {
+        const stored = names.get(`${tmdbId}-${e.season}-${e.episode}`);
+        if (stored && !isPlaceholderEpisodeName(stored)) e.name = stored;
+      }
+    }
+  }
+  return result;
+}
+
+export const getPerson = unstable_cache(fetchPerson, ["person-v5"], { revalidate: 24 * 60 * 60 });
 
 export type PersonPage = Awaited<ReturnType<typeof fetchPerson>>;
 

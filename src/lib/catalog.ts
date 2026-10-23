@@ -275,7 +275,12 @@ async function saveSeries(show: TmdbTvWithSeasons, existingTitleId?: string) {
   // lastSyncedAt is only set once seasons and episodes are stored, so a failed sync is retried next time
   const title = existing
     ? await prisma.title.update({ where: { id: existing.id }, data: titleData })
-    : await prisma.title.create({ data: { type: "SERIES", ...titleData } });
+    : // Upsert: two first visits of the same series at once must not both try to create it
+      await prisma.title.upsert({
+        where: { tmdbId_type: { tmdbId: show.id, type: "SERIES" } },
+        create: { type: "SERIES", ...titleData },
+        update: titleData,
+      });
 
   const seasonsWithEpisodes = show.seasonsWithEpisodes.filter((s) => s.episodes.length > 0);
   const seasonRows = seasonsWithEpisodes.map((s) => ({
@@ -427,7 +432,12 @@ async function saveMovie(movie: TmdbMovieDetails) {
   };
   const existing = await prisma.title.findFirst({ where: { tmdbId: movie.id, type: "MOVIE" }, select: { id: true } });
   if (existing) await prisma.title.update({ where: { id: existing.id }, data });
-  else await prisma.title.create({ data: { type: "MOVIE", ...data } });
+  else
+    await prisma.title.upsert({
+      where: { tmdbId_type: { tmdbId: movie.id, type: "MOVIE" } },
+      create: { type: "MOVIE", ...data },
+      update: data,
+    });
 }
 
 function findStoredMovie(tmdbId: number) {

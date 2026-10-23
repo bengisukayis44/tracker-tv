@@ -84,8 +84,22 @@ export type TmdbMovieSearchItem = {
 
 /** /person/{id}/combined_credits cast entry: a series or movie with the character played. */
 export type TmdbPersonCredit =
-  | (TmdbTvSearchItem & { media_type: "tv"; character: string | null; popularity: number; episode_count?: number })
-  | (TmdbMovieSearchItem & { media_type: "movie"; character: string | null; popularity: number });
+  | (TmdbTvSearchItem & {
+      media_type: "tv";
+      credit_id: string;
+      character: string | null;
+      popularity: number;
+      episode_count?: number;
+    })
+  | (TmdbMovieSearchItem & { media_type: "movie"; credit_id: string; character: string | null; popularity: number });
+
+/** /credit/{id} for a series role: the episodes (guest parts) and seasons it covers. */
+export type TmdbCreditDetails = {
+  media: {
+    episodes?: { season_number: number; episode_number: number; name: string }[];
+    seasons?: { season_number: number }[];
+  };
+};
 
 export type TmdbPerson = {
   id: number;
@@ -375,6 +389,11 @@ export const tmdb = {
         ),
       },
     };
+  },
+
+  /** Which episodes and seasons one series role covers. */
+  async creditDetails(creditId: string, options?: TmdbRequestOptions): Promise<TmdbCreditDetails> {
+    return tmdbFetch<TmdbCreditDetails>(`/credit/${encodeURIComponent(creditId)}`, { language: LANGUAGE }, options);
   },
 
   /** Genre id → Turkish name, fetched once per server instance. */

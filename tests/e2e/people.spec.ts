@@ -20,6 +20,11 @@ test.describe("Oyuncu sayfaları", () => {
 
     const series = page.getByRole("region", { name: /^Diziler/ });
     await expect(series.locator(`a[href="/series/${SHERLOCK.id}"]`)).toContainText("Sherlock Holmes");
+    // Long roles get a season summary, short ones list their episodes
+    await expect(series.getByText(/^Sezon 1–4.* · \d+ bölüm$/).first()).toBeVisible();
+    const guest = series.getByRole("list", { name: "Oynadığı bölümler" }).first();
+    await expect(guest.getByRole("link").first()).toHaveAttribute("href", /^\/series\/\d+\/season\/\d+\/episode\/\d+$/);
+    await expect(guest.getByRole("link").first()).toContainText(/^S\d{2}E\d{2}/);
     const movies = page.getByRole("region", { name: /^Filmler/ });
     await expect(movies.getByRole("link").first()).toBeVisible();
     // Long lists open on demand

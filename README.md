@@ -158,7 +158,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 - **Oyuncu sayfası** (`/person/[id]`, TMDB kişi kimliği): fotoğraf, doğum bilgisi, Türkçe (yoksa İngilizce) biyografi,
   IMDb bağlantısı; diziler (rol aldığı bölüm sayısına göre) ve filmler (bilinirliğe göre) ayrı, oynadığı karakterle;
-  ilk 12'si görünür, "Tümünü göster" ile hepsi. Giriş yapana "N tanesini izledin" ve kartlarda "İzledin" işareti.
+  ilk 12'si görünür, "Tümünü göster" ile hepsi. Dizi kartının altında rolün özeti: en fazla 3 bölümse bölümler
+  bağlantı olarak ("S24E12 · Bölüm adı"), daha uzunsa sezonlar ("Sezon 1–4 + özel bölümler · 12 bölüm"; TMDB
+  `/credit/{id}`, kurallar `src/lib/appearance.ts`). Giriş yapana "N tanesini izledin" ve kartlarda "İzledin" işareti.
   TMDB yanıtı bir gün önbellekte. Oyuncu kartları, favori karakterler, topluluk ve kapaktaki oyuncu adları buraya bağlanır.
 
 - Dizi ve film sayfalarında **Oyuncular**: oyuncu fotoğrafı, adı ve oynadığı karakter (en fazla 20 kişi).
