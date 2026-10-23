@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { LogOut, Settings, Tv } from "lucide-react";
+import { Bell, LogOut, Settings, Tv } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
+import { getUnreadCount } from "@/lib/notifications";
 import { logoutAction } from "@/app/(auth)/actions";
 import { SiteNav } from "@/components/site-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +17,7 @@ import {
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
+  const unread = user ? await getUnreadCount(user.id) : 0;
 
   return (
     <header className="bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
@@ -32,6 +34,20 @@ export async function SiteHeader() {
         <SiteNav username={user?.username ?? null} className="hidden h-full lg:block" />
 
         <div className="flex items-center gap-2">
+          {user && (
+            <Link
+              href="/bildirimler"
+              aria-label={unread ? `Bildirimler, ${unread} okunmamış` : "Bildirimler"}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent relative rounded-full p-2 transition-colors"
+            >
+              <Bell className="size-5" />
+              {unread > 0 && (
+                <span className="bg-primary-strong text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
+          )}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

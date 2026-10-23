@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { formatCommentTime, isEdited, sortComments } from "@/lib/comments";
+import { formatCommentTime, isEdited, nestReplies, sortComments, type CommentView } from "@/lib/comments";
 import { COMMENT_MAX_LENGTH, editCommentSchema, newCommentSchema } from "@/lib/validations/comment";
 
 // In-memory stand-ins for the database, the session and Next's cache
-const { db, auth } = vi.hoisted(() => ({
+const { db, auth, notifications } = vi.hoisted(() => ({
+  notifications: { notify: vi.fn(), unnotify: vi.fn() },
   db: {
-    comment: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn() },
+    comment: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
     commentLike: { findUnique: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
     title: { findFirst: vi.fn() },
     episode: { findUnique: vi.fn() },
@@ -15,6 +16,7 @@ const { db, auth } = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/auth", () => auth);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/notifications", () => notifications);
 
 const { addComment, deleteComment, editComment, toggleCommentLike } = await import("@/app/actions/comments");
 
@@ -60,8 +62,12 @@ describe("comment validation", () => {
   });
 
   it("needs a known target kind with its id", () => {
-    expect(newCommentSchema.safeParse({ target: { kind: "series", titleId: "x" }, content: "a", isSpoiler: false }).success).toBe(false);
-    expect(newCommentSchema.safeParse({ target: { kind: "episode" }, content: "a", isSpoiler: false }).success).toBe(false);
+    expect(
+      newCommentSchema.safeParse({ target: { kind: "series", titleId: "x" }, content: "a", isSpoiler: false }).success,
+    ).toBe(false);
+    expect(newCommentSchema.safeParse({ target: { kind: "episode" }, content: "a", isSpoiler: false }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -90,8 +96,35 @@ describe("comment permissions", () => {
   it("saves a new comment for the signed-in user on an existing movie", async () => {
     expect(await addComment({ target: movieTarget, content: " Güzel ", isSpoiler: true })).toEqual({ ok: true });
     expect(db.comment.create).toHaveBeenCalledWith({
-      data: { userId: "me", content: "Güzel", isSpoiler: true, titleId: "movie1" },
+      data: { userId: "me", content: "Güzel", isSpoiler: true, parentId: null, titleId: "movie1" },
+      select: { id: true },
     });
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it("saves a reply to a top-level comment on the same movie and tells its author", async () => {
+    db.comment.create.mockResolvedValue({ id: "reply1" });
+    db.comment.findFirst.mockResolvedValue({ userId: "someone-else" });
+    expect(await addComment({ target: movieTarget, parentId: "c1", content: "Katılıyorum", isSpoiler: false })).toEqual(
+      {
+        ok: true,
+      },
+    );
+    // Only a top-level comment on the same movie can be answered
+    expect(db.comment.findFirst).toHaveBeenCalledWith({
+      where: { id: "c1", parentId: null, titleId: "movie1" },
+      select: { userId: true },
+    });
+    expect(db.comment.create.mock.calls[0][0].data).toMatchObject({ parentId: "c1", titleId: "movie1" });
+    expect(notifications.notify).toHaveBeenCalledWith("someone-else", "me", "REPLY", "reply1");
+  });
+
+  it("refuses a reply to a reply or to a comment elsewhere", async () => {
+    db.comment.findFirst.mockResolvedValue(null);
+    expect(await addComment({ target: movieTarget, parentId: "r1", content: "a", isSpoiler: false })).toMatchObject({
+      ok: false,
+    });
+    expect(db.comment.create).not.toHaveBeenCalled();
   });
 
   it("refuses comments on a movie that does not exist", async () => {
@@ -109,19 +142,56 @@ describe("comment permissions", () => {
     db.comment.findUnique.mockResolvedValue({ userId: "me", episodeId: null, titleId: "movie1" });
     expect(await editComment({ commentId: "c1", content: "yeni", isSpoiler: false })).toEqual({ ok: true });
     expect(await deleteComment("c1")).toEqual({ ok: true });
-    expect(db.comment.update).toHaveBeenCalledWith({ where: { id: "c1" }, data: { content: "yeni", isSpoiler: false } });
+    expect(db.comment.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { content: "yeni", isSpoiler: false },
+    });
     expect(db.comment.delete).toHaveBeenCalledWith({ where: { id: "c1" } });
   });
 
   it("likes and unlikes others' comments but not your own", async () => {
     db.commentLike.findUnique.mockResolvedValue(null);
     expect(await toggleCommentLike("c1")).toEqual({ ok: true, liked: true });
+    expect(notifications.notify).toHaveBeenCalledWith("someone-else", "me", "LIKE", "c1");
     db.commentLike.findUnique.mockResolvedValue({ userId: "me", commentId: "c1" });
     expect(await toggleCommentLike("c1")).toEqual({ ok: true, liked: false });
     expect(db.commentLike.deleteMany).toHaveBeenCalledWith({ where: { userId: "me", commentId: "c1" } });
+    expect(notifications.unnotify).toHaveBeenCalledWith("someone-else", "me", "LIKE", "c1");
 
     db.comment.findUnique.mockResolvedValue({ userId: "me", episodeId: null, titleId: "movie1" });
     expect(await toggleCommentLike("c1")).toMatchObject({ ok: false });
     expect(db.commentLike.createMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("nestReplies", () => {
+  const view = (id: string, createdAt: string, parentId: string | null) =>
+    ({
+      id,
+      parentId,
+      createdAt,
+      replies: [],
+      content: id,
+      isSpoiler: false,
+      createdLabel: "",
+      edited: false,
+      author: { username: "a", avatarUrl: null },
+      likeCount: 0,
+      likedByMe: false,
+      mine: false,
+    }) as CommentView & { parentId: string | null };
+
+  it("puts replies under their comment, comments newest first and replies oldest first", () => {
+    const nested = nestReplies([
+      view("eski", "2026-10-01T10:00:00Z", null),
+      view("cevap-2", "2026-10-03T10:00:00Z", "eski"),
+      view("yeni", "2026-10-02T10:00:00Z", null),
+      view("cevap-1", "2026-10-02T12:00:00Z", "eski"),
+      view("sahipsiz", "2026-10-02T12:00:00Z", "yok"),
+    ]);
+    expect(nested.map((c) => [c.id, c.replies.map((r) => r.id)])).toEqual([
+      ["yeni", []],
+      ["eski", ["cevap-1", "cevap-2"]],
+    ]);
   });
 });

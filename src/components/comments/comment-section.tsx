@@ -36,10 +36,10 @@ export function CommentSection({
   const router = useRouter();
   const pathname = usePathname();
   const goToLogin = useLoginRedirect();
-  const sorted = sortComments(
-    comments.map((c) => ({ ...c, ...likes[c.id] })),
-    sort,
-  );
+  // Likes given here, on comments and replies alike
+  const withLikes = (c: CommentView): CommentView => ({ ...c, ...likes[c.id], replies: c.replies.map(withLikes) });
+  const sorted = sortComments(comments.map(withLikes), sort);
+  const total = comments.reduce((sum, c) => sum + 1 + c.replies.length, 0);
 
   const toggleLike = async (comment: CommentView) => {
     if (!signedIn) return goToLogin();
@@ -67,7 +67,7 @@ export function CommentSection({
         <h2 id="comments-heading" className="inline-flex items-center gap-2 text-lg font-bold">
           <MessageSquare className="size-5" />
           Yorumlar
-          <span className="text-muted-foreground font-semibold">({comments.length})</span>
+          <span className="text-muted-foreground font-semibold">({total})</span>
         </h2>
         {comments.length > 1 && (
           <div role="group" aria-label="Yorum sıralaması" className="bg-muted inline-flex rounded-lg p-1">
@@ -124,7 +124,8 @@ export function CommentSection({
               key={comment.id}
               comment={comment}
               spoilersRevealed={spoilersRevealed}
-              onToggleLike={() => toggleLike(comment)}
+              onToggleLike={toggleLike}
+              reply={{ target, signedIn }}
             />
           ))}
         </div>

@@ -15,7 +15,12 @@ export function CommentForm({
   submitLabel,
   onSubmit,
   onCancel,
+  label = "Yorumun",
+  placeholder = "Ne düşündün? Başkalarıyla paylaş…",
 }: {
+  /** Name of the text box (screen readers) */
+  label?: string;
+  placeholder?: string;
   initial?: CommentDraft;
   submitLabel: string;
   /** Resolves with the action result; the form clears itself after a successful new comment */
@@ -44,7 +49,7 @@ export function CommentForm({
   return (
     <form onSubmit={submit} className="space-y-3">
       <label htmlFor={`${id}-content`} className="sr-only">
-        {initial ? "Yorumu düzenle" : "Yorumun"}
+        {initial ? "Yorumu düzenle" : label}
       </label>
       <Textarea
         id={`${id}-content`}
@@ -52,8 +57,8 @@ export function CommentForm({
         onChange={(e) => setContent(e.target.value)}
         maxLength={COMMENT_MAX_LENGTH}
         rows={3}
-        placeholder="Ne düşündün? Başkalarıyla paylaş…"
-        autoFocus={Boolean(initial)}
+        placeholder={placeholder}
+        autoFocus={Boolean(initial) || label !== "Yorumun"}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label htmlFor={`${id}-spoiler`} className="inline-flex cursor-pointer items-center gap-2 text-sm">

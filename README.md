@@ -56,6 +56,15 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Playwright'ın açtığı tarayıcılar push aboneliği alamadığı için uçtan uca testler aboneliği veritabanına yazar ve
   görevi kuru çalıştırır; gönderim ve şifreleme yerelde sahte bir push sunucusuyla doğrulandı.
 
+## Cevaplar ve bildirimler
+
+- Üst düzey yorumların altında **Cevapla** (tek seviye); cevaplar yorumun altında, eskiden yeniye. Yorum sayısına
+  cevaplar dahil. Yorum silinince cevapları da silinir.
+- **Uygulama içi bildirimler:** biri yorumuna cevap verince, yorumunu beğenince ya da seni takip edince (`Notification`
+  tablosu). Beğeni/takip geri alınınca bildirimi de silinir; kişinin kendi hareketi bildirim üretmez.
+- Başlıkta zil: okunmamış sayısı (9+); `/bildirimler` son 50 bildirimi gösterir, açılınca hepsi okunmuş olur. Cevap
+  bildirimi konuşmanın olduğu yere (`#yorum-…`) götürür; spoiler cevaplar bildirimde "(spoiler)" görünür.
+
 ## Kendi listeler
 
 - Dizi/film sayfasında **Listeye ekle**: listelerin işaret kutularıyla (ekle/çıkar hemen kaydolur) ve "Yeni liste

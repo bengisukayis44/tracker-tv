@@ -12,6 +12,8 @@ export type CommentView = {
   likeCount: number;
   likedByMe: boolean;
   mine: boolean;
+  /** Answers to this comment, oldest first (replies have none themselves) */
+  replies: CommentView[];
 };
 
 export const COMMENT_SORTS = [
@@ -46,4 +48,16 @@ const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
 /** "21 Ekim 2026 15:32" (Turkish time) */
 export function formatCommentTime(date: Date) {
   return timeFormatter.format(date);
+}
+
+/**
+ * Puts replies under the comment they answer: top-level comments newest first, replies in the order they
+ * were written. Replies to comments that are not in the list are dropped.
+ */
+export function nestReplies(comments: (CommentView & { parentId: string | null })[]): CommentView[] {
+  const top = comments.filter((c) => c.parentId === null).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const byId = new Map(top.map((c) => [c.id, c]));
+  const replies = comments.filter((c) => c.parentId !== null).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const reply of replies) byId.get(reply.parentId!)?.replies.push(reply);
+  return top;
 }

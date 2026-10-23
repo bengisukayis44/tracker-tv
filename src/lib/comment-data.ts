@@ -1,12 +1,15 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { formatCommentTime, isEdited, type CommentView } from "@/lib/comments";
+import { formatCommentTime, isEdited, nestReplies, type CommentView } from "@/lib/comments";
 import type { CommentTarget } from "@/lib/validations/comment";
 
 // Plenty for one episode or movie; the newest are kept if there are ever more
 const COMMENT_LIMIT = 500;
 
-/** Comments of an episode or movie with like counts and what the viewer (if any) may do with them. */
+/**
+ * Comments of an episode or movie, replies under the comment they answer, with like counts and what the
+ * viewer (if any) may do with them.
+ */
 export async function getComments(target: CommentTarget, viewerId: string | null): Promise<CommentView[]> {
   const comments = await prisma.comment.findMany({
     where: target.kind === "episode" ? { episodeId: target.episodeId } : { titleId: target.titleId },
@@ -15,6 +18,7 @@ export async function getComments(target: CommentTarget, viewerId: string | null
     select: {
       id: true,
       userId: true,
+      parentId: true,
       content: true,
       isSpoiler: true,
       createdAt: true,
@@ -24,8 +28,9 @@ export async function getComments(target: CommentTarget, viewerId: string | null
       likes: viewerId ? { where: { userId: viewerId }, select: { userId: true } } : false,
     },
   });
-  return comments.map((c) => ({
+  const views = comments.map((c) => ({
     id: c.id,
+    parentId: c.parentId,
     content: c.content,
     isSpoiler: c.isSpoiler,
     createdAt: c.createdAt.toISOString(),
@@ -35,7 +40,9 @@ export async function getComments(target: CommentTarget, viewerId: string | null
     likeCount: c._count.likes,
     likedByMe: Boolean(c.likes?.length),
     mine: c.userId === viewerId,
+    replies: [] as CommentView[],
   }));
+  return nestReplies(views);
 }
 
 /** "En çok konuşulanlar": episodes and movies with the most comments in the last `days` days. */

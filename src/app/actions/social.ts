@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
+import { notify, unnotify } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { idSchema } from "@/lib/validations/watch";
 import type { ActionResult } from "./watch";
@@ -23,8 +24,10 @@ export async function setFollowing(userId: string, follow: boolean): Promise<Act
   if (follow) {
     if (target.isPrivate) return { ok: false, error: "Gizli profiller takip edilemez." };
     await prisma.follow.createMany({ data: [key], skipDuplicates: true });
+    await notify(userId, me.id, "FOLLOW");
   } else {
     await prisma.follow.deleteMany({ where: key });
+    await unnotify(userId, me.id, "FOLLOW");
   }
   revalidatePath(`/profile/${target.username}`);
   revalidatePath("/akis");

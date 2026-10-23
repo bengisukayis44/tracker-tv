@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
+import { notify, unnotify } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   editCommentSchema,
@@ -57,19 +58,36 @@ export async function addComment(input: NewCommentInput): Promise<ActionResult> 
 
   const parsed = newCommentSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { target, content, isSpoiler } = parsed.data;
+  const { target, content, isSpoiler, parentId } = parsed.data;
 
   const path = await targetPath(target);
   if (!path) return { ok: false, error: target.kind === "movie" ? "Film bulunamadı." : "Bölüm bulunamadı." };
 
-  await prisma.comment.create({
+  // A reply answers a top-level comment on the same episode or movie (one level deep)
+  let parent: { userId: string } | null = null;
+  if (parentId) {
+    parent = await prisma.comment.findFirst({
+      where: {
+        id: parentId,
+        parentId: null,
+        ...(target.kind === "episode" ? { episodeId: target.episodeId } : { titleId: target.titleId }),
+      },
+      select: { userId: true },
+    });
+    if (!parent) return { ok: false, error: "Cevap verdiğin yorum bulunamadı." };
+  }
+
+  const comment = await prisma.comment.create({
     data: {
       userId: user.id,
       content,
       isSpoiler,
+      parentId: parentId ?? null,
       ...(target.kind === "episode" ? { episodeId: target.episodeId } : { titleId: target.titleId }),
     },
+    select: { id: true },
   });
+  if (parent) await notify(parent.userId, user.id, "REPLY", comment.id);
   revalidatePath(path);
   return { ok: true };
 }
@@ -121,8 +139,13 @@ export async function toggleCommentLike(commentId: string): Promise<ActionResult
 
   const where = { userId_commentId: { userId: user.id, commentId } };
   const liked = !(await prisma.commentLike.findUnique({ where }));
-  if (liked) await prisma.commentLike.createMany({ data: [{ userId: user.id, commentId }], skipDuplicates: true });
-  else await prisma.commentLike.deleteMany({ where: { userId: user.id, commentId } });
+  if (liked) {
+    await prisma.commentLike.createMany({ data: [{ userId: user.id, commentId }], skipDuplicates: true });
+    await notify(comment.userId, user.id, "LIKE", commentId);
+  } else {
+    await prisma.commentLike.deleteMany({ where: { userId: user.id, commentId } });
+    await unnotify(comment.userId, user.id, "LIKE", commentId);
+  }
 
   const path = await targetPath(comment.target);
   if (path) revalidatePath(path);

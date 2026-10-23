@@ -17,7 +17,12 @@ const commentFields = {
   isSpoiler: z.boolean(),
 };
 
-export const newCommentSchema = z.object({ target: commentTargetSchema, ...commentFields });
+export const newCommentSchema = z.object({
+  target: commentTargetSchema,
+  /** Set for a reply: the (top-level) comment answered */
+  parentId: z.string().min(1).optional(),
+  ...commentFields,
+});
 export const editCommentSchema = z.object({ commentId: z.string().min(1), ...commentFields });
 
 export type CommentTarget = z.infer<typeof commentTargetSchema>;
