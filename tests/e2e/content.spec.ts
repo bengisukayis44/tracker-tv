@@ -18,6 +18,26 @@ test.describe("Ana sayfa", () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test("kaydırmalı satırlarda kaydırma çubuğu yerine oklar var", async ({ page }, info) => {
+    test.skip(info.project.name === "mobil", "Telefonda parmakla kaydırılır; oklar yalnızca geniş ekranda");
+    await page.goto("/");
+    const row = page.getByRole("list", { name: "Bu hafta popüler filmler" });
+    const back = page.getByRole("button", { name: "Bu hafta popüler filmler: geri kaydır" });
+    const forward = page.getByRole("button", { name: "Bu hafta popüler filmler: ileri kaydır" });
+    // No scrollbar takes up room
+    expect(await row.evaluate((el: HTMLElement) => el.offsetHeight - el.clientHeight)).toBe(0);
+
+    // At the start only the forward arrow
+    await expect(forward).toBeVisible();
+    await expect(back).toHaveCount(0);
+    await forward.click();
+    await expect(back).toBeVisible();
+    // At the end only the back arrow
+    await row.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await expect(forward).toHaveCount(0);
+    await expect(back).toBeVisible();
+  });
+
   test("ziyaretçi keşfet listelerini görür", async ({ page }) => {
     await page.goto("/");
     const series = page.getByRole("region", { name: "Bu hafta popüler diziler" });

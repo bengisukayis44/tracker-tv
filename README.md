@@ -85,6 +85,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   bağlantısının adı var.
 - **Hata ekranları:** `error.tsx` "Tekrar dene" sayfayı sunucudan yeniden ister; site çerçevesi de çökerse
   (ör. veritabanına ulaşılamıyor) `global-error.tsx` Türkçe bir sayfa gösterir.
+- **Yana kaydırılan satırlar** (keşfet, oyuncular, en sevilen karakterler, sezon ve profil sekmeleri) kaydırma
+  çubuğu göstermez; geniş ekranda kaydırılacak yön varsa başta/sonda ok çıkar (`components/scroll-row.tsx`),
+  telefonda parmakla kaydırılır.
 - **Yükleniyor:** sayfa değişirken en üstte ince bir ilerleme çubuğu (`navigation-progress.tsx`,
   `instrumentation-client.ts`); sayfalara `loading.tsx` eklemeden (Next.js 15.5 sorunu).
 - **Hız (23 Ekim, canlı):** en ağır profil (527 bölüm) ~0,3 sn, 890 bölümlük dizi ~0,4 sn, diğer sayfalar

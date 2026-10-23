@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { UserRound } from "lucide-react";
 import type { CastMember } from "@/lib/cast";
+import { ScrollRow } from "@/components/scroll-row";
 
 /** "Oyuncular": actors with the characters they play, in a row that scrolls sideways on small screens. */
 export function CastList({ cast }: { cast: CastMember[] }) {
@@ -10,12 +11,7 @@ export function CastList({ cast }: { cast: CastMember[] }) {
       <h2 id="cast-heading" className="text-xl font-bold">
         Oyuncular
       </h2>
-      {/* Focusable so the sideways scroll also works from the keyboard (arrow keys) */}
-      <ul
-        tabIndex={0}
-        aria-label="Oyuncu listesi, yana kaydırılır"
-        className="focus-visible:ring-ring -mx-4 flex gap-3 overflow-x-auto rounded-lg px-4 pb-2 outline-none focus-visible:ring-2 sm:mx-0 sm:px-0"
-      >
+      <ScrollRow label="Oyuncu listesi" focusable className="-mx-4 gap-3 rounded-lg px-4 pb-2 sm:mx-0 sm:px-0">
         {cast.map((member) => (
           <li key={member.id} className="w-28 shrink-0 sm:w-32">
             <div className="bg-muted relative aspect-[2/3] overflow-hidden rounded-xl border">
@@ -33,7 +29,7 @@ export function CastList({ cast }: { cast: CastMember[] }) {
             )}
           </li>
         ))}
-      </ul>
+      </ScrollRow>
     </section>
   );
 }

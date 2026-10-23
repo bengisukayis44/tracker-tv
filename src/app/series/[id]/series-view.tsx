@@ -3,6 +3,7 @@ import { ListVideo } from "lucide-react";
 import { CastList } from "@/components/cast-list";
 import { EmptyState } from "@/components/empty-state";
 import { EpisodeRow } from "@/components/episode-row";
+import { ScrollRow } from "@/components/scroll-row";
 import { TitleHero } from "@/components/title-hero";
 import { WatchProviders } from "@/components/watch-providers";
 import { parseCast } from "@/lib/cast";
@@ -122,28 +123,30 @@ export function SeriesView({
           />
         ) : (
           <>
-            <nav aria-label="Sezon seçimi" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <div className="flex w-max gap-2 border-b pb-px">
-                {seasons.map((s) => {
-                  const active = s.id === activeSeason.id;
-                  return (
-                    <Link
-                      key={s.id}
-                      href={`/series/${id}/season/${s.seasonNumber}`}
-                      scroll={false}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "-mb-px border-b-2 px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors",
-                        active
-                          ? "border-primary text-foreground"
-                          : "text-muted-foreground hover:text-foreground border-transparent",
-                      )}
-                    >
-                      {s.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${s.seasonNumber}`}
-                    </Link>
-                  );
-                })}
-              </div>
+            <nav aria-label="Sezon seçimi">
+              <ScrollRow as="div" label="Sezonlar" size="sm" className="-mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex w-max gap-2 border-b pb-px">
+                  {seasons.map((s) => {
+                    const active = s.id === activeSeason.id;
+                    return (
+                      <Link
+                        key={s.id}
+                        href={`/series/${id}/season/${s.seasonNumber}`}
+                        scroll={false}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "-mb-px border-b-2 px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors",
+                          active
+                            ? "border-primary text-foreground"
+                            : "text-muted-foreground hover:text-foreground border-transparent",
+                        )}
+                      >
+                        {s.seasonNumber === 0 ? "Özel bölümler" : `Sezon ${s.seasonNumber}`}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </ScrollRow>
             </nav>
 
             <div className="flex flex-wrap items-center justify-between gap-3">

@@ -5,6 +5,7 @@ import { PosterCard } from "@/components/poster-card";
 import { titleHref, type DiscoverLists, type SearchResult } from "@/lib/catalog";
 import type { DiscussedItem } from "@/lib/comment-data";
 import { genreLabel, pickRating } from "@/lib/format";
+import { ScrollRow } from "@/components/scroll-row";
 
 /**
  * Keşfet on the home page: this week's popular series and movies, what is in Turkish cinemas (TMDB) and
@@ -70,14 +71,9 @@ function Row({ id, title, children }: { id: string; title: string; children: Rea
       <h2 id={id} className="text-xl font-bold">
         {title}
       </h2>
-      {/* Focusable so the sideways scroll also works from the keyboard (arrow keys) */}
-      <ul
-        tabIndex={0}
-        aria-label={`${title}, yana kaydırılır`}
-        className="focus-visible:ring-ring -mx-4 flex gap-3 overflow-x-auto rounded-lg px-4 pb-2 outline-none focus-visible:ring-2 sm:mx-0 sm:px-0"
-      >
+      <ScrollRow label={title} className="-mx-4 gap-3 rounded-lg px-4 pb-2 sm:mx-0 sm:px-0">
         {children}
-      </ul>
+      </ScrollRow>
     </section>
   );
 }

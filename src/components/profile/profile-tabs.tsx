@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { ScrollRow } from "@/components/scroll-row";
 import { cn } from "@/lib/utils";
 
 export type ProfileTab = { value: string; label: string; count: number; panel: React.ReactNode };
@@ -34,7 +35,7 @@ export function ProfileTabs({ tabs, initial }: { tabs: ProfileTab[]; initial: st
 
   return (
     <div className="space-y-6">
-      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <ScrollRow as="div" label="Profil bölümleri" size="sm" className="-mx-4 px-4 sm:mx-0 sm:px-0">
         <div role="tablist" aria-label="Profil bölümleri" className="flex w-max gap-1 border-b pb-px">
           {tabs.map((tab, i) => {
             const selected = tab.value === active;
@@ -65,7 +66,7 @@ export function ProfileTabs({ tabs, initial }: { tabs: ProfileTab[]; initial: st
             );
           })}
         </div>
-      </div>
+      </ScrollRow>
 
       {tabs.map((tab) => (
         <div

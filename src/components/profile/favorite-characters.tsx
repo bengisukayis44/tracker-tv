@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, UserRound } from "lucide-react";
 import type { FavoriteCharacter } from "@/lib/profile";
+import { ScrollRow } from "@/components/scroll-row";
 
 /** "En sevdiğin karakterler": favourite-character picks summed up, most picked first. */
 export function FavoriteCharacters({ characters, isMe }: { characters: FavoriteCharacter[]; isMe: boolean }) {
@@ -20,11 +21,7 @@ export function FavoriteCharacters({ characters, isMe }: { characters: FavoriteC
           Bölüm ya da film izlerken İzledim penceresinde &ldquo;Favori karakterin&rdquo;i seçtikçe burada toplanır.
         </p>
       ) : (
-        <ol
-          tabIndex={0}
-          aria-label={`${title}, yana kaydırılır`}
-          className="focus-visible:ring-ring -mx-4 flex gap-3 overflow-x-auto rounded-lg px-4 pb-2 outline-none focus-visible:ring-2 sm:mx-0 sm:px-0"
-        >
+        <ScrollRow as="ol" label={title} focusable className="-mx-4 gap-3 rounded-lg px-4 pb-2 sm:mx-0 sm:px-0">
           {characters.map((c, i) => (
             <li key={c.key} className="bg-card w-36 shrink-0 overflow-hidden rounded-xl border sm:w-40">
               <div className="bg-muted relative aspect-square">
@@ -57,7 +54,7 @@ export function FavoriteCharacters({ characters, isMe }: { characters: FavoriteC
               </div>
             </li>
           ))}
-        </ol>
+        </ScrollRow>
       )}
     </section>
   );
