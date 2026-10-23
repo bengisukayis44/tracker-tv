@@ -60,6 +60,7 @@ export default async function MoviePage({ params }: Props) {
       >
         <TitleActions
           titleId={movie.id}
+          titleName={movie.name}
           isFavorite={viewer?.isFavorite ?? false}
           inWatchlist={viewer?.inWatchlist ?? false}
           signedIn={user !== null}

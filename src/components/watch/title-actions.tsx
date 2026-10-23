@@ -6,17 +6,20 @@ import { Bookmark, BookmarkCheck, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { toggleFavorite, toggleWatchlist } from "@/app/actions/watch";
 import { Button } from "@/components/ui/button";
+import { AddToListButton } from "@/components/lists/add-to-list-button";
 import { cn } from "@/lib/utils";
 import { useLoginRedirect } from "./use-login-redirect";
 
 /** "Favorilere ekle" and "Daha sonra izle" toggles on a title. */
 export function TitleActions({
   titleId,
+  titleName,
   isFavorite,
   inWatchlist,
   signedIn,
 }: {
   titleId: string;
+  titleName: string;
   isFavorite: boolean;
   inWatchlist: boolean;
   signedIn: boolean;
@@ -56,6 +59,7 @@ export function TitleActions({
         {later ? <BookmarkCheck className="text-primary" /> : <Bookmark />}
         {later ? "Daha sonra izlenecek" : "Daha sonra izle"}
       </Button>
+      <AddToListButton titleId={titleId} titleName={titleName} signedIn={signedIn} />
     </div>
   );
 }

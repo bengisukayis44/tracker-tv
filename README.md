@@ -56,6 +56,14 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Playwright'ın açtığı tarayıcılar push aboneliği alamadığı için uçtan uca testler aboneliği veritabanına yazar ve
   görevi kuru çalıştırır; gönderim ve şifreleme yerelde sahte bir push sunucusuyla doğrulandı.
 
+## Kendi listeler
+
+- Dizi/film sayfasında **Listeye ekle**: listelerin işaret kutularıyla (ekle/çıkar hemen kaydolur) ve "Yeni liste
+  oluştur" (ad + herkese açık/gizli). Profilde **Listelerim** sekmesi (4 afişlik kapakla kartlar, "Yeni liste").
+- **Liste sayfası** (`/list/[id]`): ad, açıklama, sahibi, yapımlar; sahibi düzenler (ad, açıklama, gizlilik), yapım
+  çıkarır ve listeyi siler. Gizli liste ya da gizli profilin listesi başkasına "sayfa bulunamadı" verir.
+- Sınırlar: kişi başı 50 liste, liste başı 500 yapım; ad 60, açıklama 300 karakter.
+
 ## Takip ve akış
 
 - Başkasının profilinde **Takip et**; profilde takipçi ve takip sayısı. Gizli profiller takip edilemez.

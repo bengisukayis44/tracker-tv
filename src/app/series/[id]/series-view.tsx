@@ -75,6 +75,7 @@ export function SeriesView({
       >
         <TitleActions
           titleId={series.id}
+          titleName={series.name}
           isFavorite={viewer?.isFavorite ?? false}
           inWatchlist={viewer?.inWatchlist ?? false}
           signedIn={signedIn}

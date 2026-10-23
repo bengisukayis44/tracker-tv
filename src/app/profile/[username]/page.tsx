@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bookmark, Clapperboard, Film, Heart, Lock, MessageSquare, Settings, Tv } from "lucide-react";
+import { Bookmark, Clapperboard, Film, Heart, ListVideo, Lock, MessageSquare, Settings, Tv } from "lucide-react";
 import { SpoilerBlur } from "@/components/comments/spoiler-blur";
 import { EmptyState } from "@/components/empty-state";
+import { ListCard } from "@/components/lists/list-card";
+import { NewListButton } from "@/components/lists/list-controls";
 import { PosterCard } from "@/components/poster-card";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 import { CoverCharacterPicker } from "@/components/profile/cover-character-picker";
@@ -16,6 +18,7 @@ import { WatchlistRemoveButton } from "@/components/profile/watchlist-remove-but
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
+import { getUserLists } from "@/lib/lists";
 import { getFollowState } from "@/lib/social";
 import { coverImageUrl } from "@/lib/cover";
 import { formatWatchTime } from "@/lib/format";
@@ -124,7 +127,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     );
   }
 
-  const [stats, series, movies, favorites, comments, watchlist, characters] = await Promise.all([
+  const [stats, series, movies, favorites, comments, watchlist, characters, lists] = await Promise.all([
     getWatchStats(user.id),
     getSeriesProgress(user.id),
     getWatchedMovies(user.id),
@@ -132,6 +135,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     getUserComments(user.id),
     getWatchlist(user.id),
     getFavoriteCharacters(user.id),
+    getUserLists(user.id, isMe),
   ]);
   const favoriteSeries = favorites.filter((f) => f.title.type === "SERIES");
   const favoriteMovies = favorites.filter((f) => f.title.type === "MOVIE");
@@ -235,6 +239,33 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                   ))}
                 </div>
               ),
+          },
+          {
+            value: "listeler",
+            label: isMe ? "Listelerim" : "Listeleri",
+            count: lists.length,
+            panel: (
+              <div className="space-y-4">
+                {isMe && <NewListButton />}
+                {lists.length === 0 ? (
+                  <EmptyState
+                    icon={<ListVideo />}
+                    title="Liste yok"
+                    text={
+                      isMe
+                        ? "Kendi listelerini oluştur: dizi ve film sayfalarındaki “Listeye ekle” ya da yukarıdaki “Yeni liste”."
+                        : `@${user.username} henüz herkese açık bir liste oluşturmadı.`
+                    }
+                  />
+                ) : (
+                  <Grid>
+                    {lists.map((list) => (
+                      <ListCard key={list.id} list={list} />
+                    ))}
+                  </Grid>
+                )}
+              </div>
+            ),
           },
           {
             value: "yorumlar",
