@@ -371,6 +371,7 @@ export async function getCoverCharacter(user: {
   return {
     character: characterLabel(member),
     actorName: member.name,
+    personId: member.id,
     // The stored w185 photo is too small for the big round icon; TMDB also has h632 of the same image
     photoUrl: member.profileUrl?.replace("/w185/", "/h632/") ?? null,
     titleName: title.name,

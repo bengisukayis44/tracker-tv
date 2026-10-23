@@ -44,7 +44,13 @@ export function FavoriteCharacters({ characters, isMe }: { characters: FavoriteC
               </div>
               <div className="space-y-0.5 p-2.5">
                 <p className="truncate text-sm font-bold">{c.character}</p>
-                {c.actorName && <p className="text-muted-foreground truncate text-xs">{c.actorName}</p>}
+                {c.actorName && (
+                  <p className="text-muted-foreground truncate text-xs">
+                    <Link href={`/person/${c.castId}`} className="hover:text-primary">
+                      {c.actorName}
+                    </Link>
+                  </p>
+                )}
                 <p className="text-muted-foreground truncate text-xs">
                   <Link href={c.title.href} className="hover:text-primary font-semibold">
                     {c.title.name}

@@ -87,6 +87,20 @@ export type TmdbPersonCredit =
   | (TmdbTvSearchItem & { media_type: "tv"; character: string | null; popularity: number; episode_count?: number })
   | (TmdbMovieSearchItem & { media_type: "movie"; character: string | null; popularity: number });
 
+export type TmdbPerson = {
+  id: number;
+  name: string;
+  biography: string;
+  birthday: string | null;
+  deathday: string | null;
+  place_of_birth: string | null;
+  profile_path: string | null;
+  imdb_id: string | null;
+  known_for_department: string | null;
+  combined_credits?: { cast: TmdbPersonCredit[] };
+  translations?: { translations: { iso_639_1: string; data: { biography?: string } }[] };
+};
+
 /** /search/multi result: series and movies (people are filtered out). */
 export type TmdbMultiSearchItem =
   | (TmdbTvSearchItem & { media_type: "tv" })
@@ -342,6 +356,25 @@ export const tmdb = {
       options,
     );
     return data.cast.filter((c) => (c.media_type === "tv" || c.media_type === "movie") && !c.adult);
+  },
+
+  /** A person's details and credits; the biography falls back to English when there is no Turkish one. */
+  async getPerson(personId: number, options?: TmdbRequestOptions): Promise<TmdbPerson> {
+    const person = await tmdbFetch<TmdbPerson>(
+      `/person/${personId}`,
+      { language: LANGUAGE, append_to_response: "combined_credits,translations" },
+      options,
+    );
+    const english = person.translations?.translations.find((t) => t.iso_639_1 === "en")?.data.biography;
+    return {
+      ...person,
+      biography: person.biography?.trim() ? person.biography : (english ?? ""),
+      combined_credits: {
+        cast: (person.combined_credits?.cast ?? []).filter(
+          (c) => (c.media_type === "tv" || c.media_type === "movie") && !c.adult,
+        ),
+      },
+    };
   },
 
   /** Genre id → Turkish name, fetched once per server instance. */

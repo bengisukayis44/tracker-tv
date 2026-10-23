@@ -139,6 +139,11 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 ## Oyuncular
 
+- **Oyuncu sayfası** (`/person/[id]`, TMDB kişi kimliği): fotoğraf, doğum bilgisi, Türkçe (yoksa İngilizce) biyografi,
+  IMDb bağlantısı; diziler (rol aldığı bölüm sayısına göre) ve filmler (bilinirliğe göre) ayrı, oynadığı karakterle;
+  ilk 12'si görünür, "Tümünü göster" ile hepsi. Giriş yapana "N tanesini izledin" ve kartlarda "İzledin" işareti.
+  TMDB yanıtı bir gün önbellekte. Oyuncu kartları, favori karakterler, topluluk ve kapaktaki oyuncu adları buraya bağlanır.
+
 - Dizi ve film sayfalarında **Oyuncular**: oyuncu fotoğrafı, adı ve oynadığı karakter (en fazla 20 kişi).
 - TMDB'den içerikle birlikte çekilir (dizide `aggregate_credits`, filmde `credits`) ve `Title.castMembers`
   sütununda saklanır; içerik yenilendikçe güncellenir. Kadrosu hiç çekilmemiş içerik ilk ziyarette arka planda yenilenir.

@@ -12,6 +12,8 @@ import { CoverPicker } from "./cover-picker";
 export type CoverCharacterView = {
   character: string;
   actorName: string;
+  /** TMDB person id, for the actor's page */
+  personId: number;
   photoUrl: string | null;
   titleName: string;
   /** "dizisinden" or "filminden" */
@@ -181,7 +183,10 @@ function CharacterSlide({ character, children }: { character: CoverCharacterView
             <Link href={character.href} className="hover:text-primary font-semibold">
               {character.titleName}
             </Link>{" "}
-            {character.from} · {character.actorName}
+            {character.from} ·{" "}
+            <Link href={`/person/${character.personId}`} className="hover:text-primary">
+              {character.actorName}
+            </Link>
           </p>
         </div>
       </div>

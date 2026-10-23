@@ -2,6 +2,7 @@ import { Star, Users } from "lucide-react";
 import { CastAvatar } from "@/components/watch/character-picker";
 import type { CastMember } from "@/lib/cast";
 import type { CommunityStats as Stats } from "@/lib/community";
+import Link from "next/link";
 
 /** "Topluluk": how everyone who watched it rated it, felt about it and which character they loved most. */
 export function CommunityStats({ stats, cast }: { stats: Stats; cast: CastMember[] }) {
@@ -68,7 +69,14 @@ export function CommunityStats({ stats, cast }: { stats: Stats; cast: CastMember
                       <CastAvatar member={member} className="size-8" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{c.character}</span>
-                        {member && <span className="text-muted-foreground block truncate text-xs">{member.name}</span>}
+                        {member && (
+                          <Link
+                            href={`/person/${member.id}`}
+                            className="text-muted-foreground hover:text-primary block truncate text-xs"
+                          >
+                            {member.name}
+                          </Link>
+                        )}
                       </span>
                       <span className="text-muted-foreground text-sm">%{c.percent}</span>
                     </li>
