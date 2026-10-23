@@ -70,7 +70,14 @@ function Row({ id, title, children }: { id: string; title: string; children: Rea
       <h2 id={id} className="text-xl font-bold">
         {title}
       </h2>
-      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">{children}</ul>
+      {/* Focusable so the sideways scroll also works from the keyboard (arrow keys) */}
+      <ul
+        tabIndex={0}
+        aria-label={`${title}, yana kaydırılır`}
+        className="focus-visible:ring-ring -mx-4 flex gap-3 overflow-x-auto rounded-lg px-4 pb-2 outline-none focus-visible:ring-2 sm:mx-0 sm:px-0"
+      >
+        {children}
+      </ul>
     </section>
   );
 }

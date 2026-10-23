@@ -41,6 +41,8 @@ export default defineConfig({
           // From a local machine the transaction pooler (6543) sometimes stalls a query for a minute; the session
           // pooler (5432, also used for migrations) does not. Production (Vercel, next to the database) is unaffected.
           ...(process.env.DIRECT_URL ? { DATABASE_URL: process.env.DIRECT_URL } : {}),
+          // The session pooler allows 15 clients in all; leave room for the tests' own connections
+          DATABASE_POOL_MAX: "5",
         },
         timeout: 300_000,
         reuseExistingServer: !process.env.CI,

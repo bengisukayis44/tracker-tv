@@ -1,7 +1,7 @@
 # Tracker.tv — Dizi & Film Takip
 
 İzlediğin dizi ve filmleri takip ettiğin, bölümleri puanlayıp yorumladığın web uygulaması.
-Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**, **Faz 4 (yorumlar)**, **Faz 5 (profil ve listeler)**.
+Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel altyapı)**, **Faz 2 (içerik sayfaları)**, **Faz 3 (izleme takibi)**, **Faz 4 (yorumlar)**, **Faz 5 (profil ve listeler)**, **Faz 6 (cilalama)**.
 
 ## İzleme takibi (Faz 3)
 
@@ -60,6 +60,32 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   geçen birinin hareketleri akışa girmez; kişisel notlar hiçbir zaman gösterilmez.
 - Akışta son 30 günde en çok izleme yapan herkese açık kullanıcılar önerilir; arama sayfası kullanıcı adlarını da
   bulur. `@e2e.test` test hesapları öneri ve aramada gösterilmez.
+
+## Faz 6: kabul kriterleri, hata ekranları, hız, erişilebilirlik
+
+- **Kabul kriterleri** (PROJE_PLANI.md §7): dokuzu da uçtan uca testlerle doğrulanıyor:
+  | Kriter | Test |
+  |---|---|
+  | 1. Arama → bölüm sayfası, puan ve açıklama | `acceptance.spec.ts` "1:" |
+  | 2. İzledim: puan, birden fazla duygu, not; düzenleme | `watch.spec.ts` "İzledim: puan, duygular ve not…" |
+  | 3. Bölüme spoiler yorum başkasına gizli, tıklayınca açılır | `acceptance.spec.ts` "3:", `comments.spec.ts` |
+  | 4. Dizi ve film süreleri ayrı, "X ay Y gün Z saat" | `profile.spec.ts`, birim: `format.test.ts` |
+  | 5. Favori diziler ve filmler ayrı başlıklarda | `profile.spec.ts` |
+  | 6. Yorumlar hangi dizinin hangi bölümüne yazıldığıyla | `profile.spec.ts` ("Sherlock — S1 B3: …") |
+  | 7. İzlemeye devam et: kaldığın ve sıradaki bölüm | `profile.spec.ts`, birim: `watch.test.ts` |
+  | 8. Daha sonra izle ekle/çıkar | `watch.spec.ts`, `profile.spec.ts` |
+  | 9. Mobilde düzgün görünüm | tüm testler masaüstü ve Pixel 7'de; `acceptance.spec.ts` "9:" sayfa taraması |
+- **Erişilebilirlik:** `acceptance.spec.ts` ana sayfaları (ziyaretçi ve üye) axe ile WCAG 2.1 A/AA'ya göre tarar ve
+  yatay taşmayı kontrol eder. Düzeltilenler: mor tonu ikiye ayrıldı (`--primary` yazı/çizgi için, `--primary-strong`
+  beyaz yazılı düğmeler için; ikisi de en az 4.5:1), yana kayan listeler klavyeyle kaydırılabilir, telefonda logo
+  bağlantısının adı var.
+- **Hata ekranları:** `error.tsx` "Tekrar dene" sayfayı sunucudan yeniden ister; site çerçevesi de çökerse
+  (ör. veritabanına ulaşılamıyor) `global-error.tsx` Türkçe bir sayfa gösterir.
+- **Yükleniyor:** sayfa değişirken en üstte ince bir ilerleme çubuğu (`navigation-progress.tsx`,
+  `instrumentation-client.ts`); sayfalara `loading.tsx` eklemeden (Next.js 15.5 sorunu).
+- **Hız (23 Ekim, canlı):** en ağır profil (527 bölüm) ~0,3 sn, 890 bölümlük dizi ~0,4 sn, diğer sayfalar
+  0,3–0,5 sn (soğuk başlangıçta ilk istek 1–3 sn). Ek iyileştirme gerekmedi.
+- Yerel test sunucusu en fazla 5 veritabanı bağlantısı açar (`DATABASE_POOL_MAX`), session pooler'ın 15 sınırı için.
 
 ## Ayarlar (`/settings`)
 

@@ -20,6 +20,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -45,6 +46,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 270);
   --primary: oklch(0.541 0.247 293);
+  /* Solid fills under primary-foreground text (buttons, badges) */
+  --primary-strong: oklch(0.541 0.247 293);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.955 0.005 270);
   --secondary-foreground: oklch(0.25 0.02 270);
@@ -66,7 +69,10 @@
   --card-foreground: oklch(0.93 0.01 264);
   --popover: oklch(0.18 0.015 264);
   --popover-foreground: oklch(0.93 0.01 264);
-  --primary: oklch(0.606 0.25 293);
+  /* Two violets for WCAG AA (4.5:1): a lighter one for text, borders and bars on the dark background (~6:1)
+     and a deeper one behind white text on buttons (~5.5:1). One shade cannot do both. */
+  --primary: oklch(0.68 0.2 293);
+  --primary-strong: oklch(0.54 0.25 293);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.24 0.02 264);
   --secondary-foreground: oklch(0.93 0.01 264);
@@ -77,7 +83,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.606 0.25 293);
+  --ring: oklch(0.68 0.2 293);
 }
 
 @layer base {

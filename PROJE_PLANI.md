@@ -271,15 +271,17 @@ model WatchlistItem {        // "Daha sonra izle"
 ---
 
 ## 7. Kabul Kriterleri (kontrol listesi)
-- [ ] Bir diziyi arayıp bölüm sayfasına gidebiliyorum; IMDb puanı ve açıklama görünüyor.
-- [ ] "İzledim"e basınca puan, birden fazla duygu ve not girip kaydedebiliyorum; sonra düzenleyebiliyorum.
-- [ ] Bölüme spoiler işaretli yorum yazınca başkalarına gizli görünüyor, tıklayınca açılıyor.
-- [ ] Profilimde dizi ve film toplam süreleri "X ay Y gün Z saat" formatında ayrı ayrı görünüyor.
-- [ ] Profilimde favori diziler ve favori filmler ayrı başlıklarda listeleniyor.
-- [ ] Profilimde tüm yorumlarım hangi dizinin hangi bölümüne yapıldığıyla birlikte listeleniyor.
-- [ ] "İzlemeye devam et" kaldığım bölümü ve sıradakini doğru gösteriyor.
-- [ ] "Daha sonra izle" listesine ekleyip çıkarabiliyorum.
-- [ ] Uygulama mobilde düzgün görünüyor.
+- [x] Bir diziyi arayıp bölüm sayfasına gidebiliyorum; IMDb puanı ve açıklama görünüyor.
+- [x] "İzledim"e basınca puan, birden fazla duygu ve not girip kaydedebiliyorum; sonra düzenleyebiliyorum.
+- [x] Bölüme spoiler işaretli yorum yazınca başkalarına gizli görünüyor, tıklayınca açılıyor.
+- [x] Profilimde dizi ve film toplam süreleri "X ay Y gün Z saat" formatında ayrı ayrı görünüyor.
+- [x] Profilimde favori diziler ve favori filmler ayrı başlıklarda listeleniyor.
+- [x] Profilimde tüm yorumlarım hangi dizinin hangi bölümüne yapıldığıyla birlikte listeleniyor.
+- [x] "İzlemeye devam et" kaldığım bölümü ve sıradakini doğru gösteriyor.
+- [x] "Daha sonra izle" listesine ekleyip çıkarabiliyorum.
+- [x] Uygulama mobilde düzgün görünüyor.
+
+> 23 Ekim 2026: hepsi uçtan uca testlerle doğrulandı (masaüstü ve mobil); `tests/e2e/acceptance.spec.ts` ve README "Faz 6".
 
 ---
 

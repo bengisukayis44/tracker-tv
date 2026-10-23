@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { NavigationProgress } from "@/components/navigation-progress";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Toaster } from "@/components/ui/sonner";
@@ -26,9 +28,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Dark only for now; the theme switch comes in Faz 6
+    // Dark only
     <html lang="tr" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className="flex min-h-screen flex-col">
+        {/* useSearchParams needs a Suspense boundary; it holds nothing else */}
+        <Suspense>
+          <NavigationProgress />
+        </Suspense>
         <SiteHeader />
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-12">{children}</main>
         <SiteFooter />

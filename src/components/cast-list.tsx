@@ -10,7 +10,12 @@ export function CastList({ cast }: { cast: CastMember[] }) {
       <h2 id="cast-heading" className="text-xl font-bold">
         Oyuncular
       </h2>
-      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+      {/* Focusable so the sideways scroll also works from the keyboard (arrow keys) */}
+      <ul
+        tabIndex={0}
+        aria-label="Oyuncu listesi, yana kaydırılır"
+        className="focus-visible:ring-ring -mx-4 flex gap-3 overflow-x-auto rounded-lg px-4 pb-2 outline-none focus-visible:ring-2 sm:mx-0 sm:px-0"
+      >
         {cast.map((member) => (
           <li key={member.id} className="w-28 shrink-0 sm:w-32">
             <div className="bg-muted relative aspect-[2/3] overflow-hidden rounded-xl border">

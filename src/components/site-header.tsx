@@ -20,7 +20,8 @@ export async function SiteHeader() {
   return (
     <header className="bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
+        {/* The name is hidden on phones, so the link carries it for screen readers */}
+        <Link href="/" aria-label="Tracker.tv ana sayfa" className="flex items-center gap-2.5">
           <span className="bg-primary/10 text-primary border-primary/20 rounded-lg border p-2">
             <Tv className="size-4" />
           </span>
