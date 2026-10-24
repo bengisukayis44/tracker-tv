@@ -132,4 +132,49 @@ test.describe("Yönetim paneli", () => {
       await withDb((db) => db.query(`DELETE FROM auth.users WHERE "id" = $1`, [target.id]));
     }
   });
+
+  test("site sahibi yönetici yapar ve yöneticiliği geri alır", async ({
+    signedInPage: page,
+    account,
+    browser,
+  }, testInfo) => {
+    const target = await createAccount();
+    await withDb((db) =>
+      db.query(`UPDATE "User" SET "isAdmin" = true, "isOwner" = true WHERE "id" = $1`, [account.id]),
+    );
+
+    const other = await browser.newContext({ ...testInfo.project.use });
+    try {
+      const targetPage = await other.newPage();
+      await login(targetPage, target);
+      await targetPage.goto("/admin");
+      await expect(targetPage.getByRole("heading", { name: "Sayfa bulunamadı" })).toBeVisible();
+
+      await page.goto(`/admin/kullanicilar/${account.id}`);
+      await expect(page.getByText("Site sahibi")).toBeVisible();
+      await page.goto(`/admin/kullanicilar/${target.id}`);
+      await page.getByRole("button", { name: "Yönetici yap" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Yönetici yap" }).click();
+      await expect(page.getByText(`@${target.username} artık yönetici.`)).toBeVisible();
+      await expect(page.getByText("Yönetici", { exact: true })).toBeVisible();
+      // Nobody suspends or deletes an admin
+      await expect(page.getByRole("button", { name: "Askıya al" })).toHaveCount(0);
+
+      // The new admin gets in, but cannot hand out admin rights or touch the owner
+      await targetPage.goto("/admin");
+      await expect(targetPage.getByRole("heading", { level: 1, name: "Genel bakış" })).toBeVisible();
+      await targetPage.goto(`/admin/kullanicilar/${account.id}`);
+      await expect(targetPage.getByRole("heading", { level: 1, name: `@${account.username}` })).toBeVisible();
+      await expect(targetPage.getByRole("button", { name: /Yönetici|Askıya al|Hesabı sil/ })).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Yöneticiliği al" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Yöneticiliği al" }).click();
+      await expect(page.getByText(`@${target.username} artık yönetici değil.`)).toBeVisible();
+      await targetPage.goto("/admin");
+      await expect(targetPage.getByRole("heading", { name: "Sayfa bulunamadı" })).toBeVisible();
+    } finally {
+      await other.close();
+      await withDb((db) => db.query(`DELETE FROM auth.users WHERE "id" = $1`, [target.id]));
+    }
+  });
 });

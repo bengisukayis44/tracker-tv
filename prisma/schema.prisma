@@ -48,6 +48,7 @@ model User {
   coverCharacterTitleId String? // kapağın ikinci sayfası: seçilen karakterin dizisi/filmi (Title.id)
   coverCharacterCastId  Int? // ve oyuncunun TMDB kimliği (Title.castMembers içinden)
   isAdmin               Boolean  @default(false) // yönetim paneline (/admin) girebilir
+  isOwner               Boolean  @default(false) // site sahibi: yönetici yapar/yöneticiliği alır; kimse ona işlem yapamaz
   suspendedAt           DateTime? // askıya alındı: giriş yapamaz, hiçbir işlem yapamaz
   createdAt             DateTime @default(now())
 

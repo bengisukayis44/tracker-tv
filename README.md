@@ -86,7 +86,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 ## Yönetim paneli (`/admin`)
 
-- Yalnızca `User.isAdmin` olan hesaplar girer (site sahibi, migration ile). Başkası her panel adresinde "sayfa
+- Yalnızca `User.isAdmin` olan hesaplar girer. **Site sahibi** (`User.isOwner`, migration ile) kişi sayfasından
+  **Yönetici yap / Yöneticiliği al** yapabilen tek kişidir; kimse ona işlem yapamaz. Kullanıcı listesinde "Yöneticiler"
+  filtresi var. Başkası her panel adresinde "sayfa
   bulunamadı" görür; her sayfa ve her işlem sunucuda yeniden kontrol eder. Yöneticiye hesap menüsünde "Yönetim paneli".
 - **Genel bakış:** üye sayısı (7/30 günde yeni), aktif kişi (izledi ya da yorum yazdı), izlenen bölüm/film, yorum ve
   bekleyen şikayet sayıları; son 30 günün yeni üye ve izleme grafikleri; bu hafta en çok izlenen diziler ve filmler.

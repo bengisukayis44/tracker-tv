@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
-import { deleteUserAccount, setSuspended } from "@/app/actions/admin";
+import { ArrowLeft, Ban, ExternalLink, RotateCcw, ShieldCheck, ShieldOff, Trash2 } from "lucide-react";
+import { deleteUserAccount, setAdmin, setSuspended } from "@/app/actions/admin";
 import { AdminCommentList } from "@/components/admin/admin-comment-list";
 import { ConfirmButton } from "@/components/admin/confirm-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +23,8 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
   const user = await getAdminUser((await params).id);
   if (!user) notFound();
   const canAct = user.id !== admin.id && !user.isAdmin;
+  // Admin rights are the owner's to give and take back
+  const canSetAdmin = admin.isOwner && user.id !== admin.id && !user.isOwner && (user.isAdmin || !user.suspendedAt);
 
   const facts = [
     ["Üyelik", dateTime.format(user.createdAt)],
@@ -52,7 +54,11 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
           <h1 className="truncate text-2xl font-extrabold tracking-tight">@{user.username}</h1>
           <p className="text-muted-foreground truncate text-sm">{user.email}</p>
           <p className="flex flex-wrap gap-x-2 text-sm">
-            {user.isAdmin && <span className="text-primary font-semibold">Yönetici</span>}
+            {user.isOwner ? (
+              <span className="text-primary font-semibold">Site sahibi</span>
+            ) : (
+              user.isAdmin && <span className="text-primary font-semibold">Yönetici</span>
+            )}
             {user.suspendedAt && (
               <span className="text-destructive font-semibold">
                 {dateTime.format(user.suspendedAt)} tarihinden beri askıda
@@ -79,48 +85,80 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
         ))}
       </dl>
 
-      {canAct && (
+      {(canAct || canSetAdmin) && (
         <section aria-labelledby="actions-heading" className="space-y-2">
           <h2 id="actions-heading" className="text-lg font-bold">
             İşlemler
           </h2>
           <div className="flex flex-wrap gap-2">
-            {user.suspendedAt ? (
-              <ConfirmButton
-                action={setSuspended.bind(null, user.id, false)}
-                done={`@${user.username} askıdan çıkarıldı.`}
-              >
-                <RotateCcw />
-                Askıdan çıkar
-              </ConfirmButton>
-            ) : (
-              <ConfirmButton
-                action={setSuspended.bind(null, user.id, true)}
-                done={`@${user.username} askıya alındı.`}
-                confirm={{
-                  title: `@${user.username} askıya alınsın mı?`,
-                  text: "Oturumu kapanır, giriş yapamaz ve hiçbir şey yapamaz. Verileri silinmez; istediğin zaman askıdan çıkarabilirsin.",
-                  label: "Askıya al",
-                }}
-              >
-                <Ban />
-                Askıya al
-              </ConfirmButton>
+            {canSetAdmin &&
+              (user.isAdmin ? (
+                <ConfirmButton
+                  action={setAdmin.bind(null, user.id, false)}
+                  done={`@${user.username} artık yönetici değil.`}
+                  confirm={{
+                    title: `@${user.username} yöneticilikten çıkarılsın mı?`,
+                    text: "Yönetim paneline giremez; hesabı normal bir üye olarak kalır.",
+                    label: "Yöneticiliği al",
+                  }}
+                >
+                  <ShieldOff />
+                  Yöneticiliği al
+                </ConfirmButton>
+              ) : (
+                <ConfirmButton
+                  action={setAdmin.bind(null, user.id, true)}
+                  done={`@${user.username} artık yönetici.`}
+                  confirm={{
+                    title: `@${user.username} yönetici yapılsın mı?`,
+                    text: "Yönetim paneline girer; kullanıcıları askıya alabilir, hesap ve yorum silebilir. Yönetici yapma yetkisi yalnızca sende kalır.",
+                    label: "Yönetici yap",
+                  }}
+                >
+                  <ShieldCheck />
+                  Yönetici yap
+                </ConfirmButton>
+              ))}
+            {canAct && (
+              <>
+                {user.suspendedAt ? (
+                  <ConfirmButton
+                    action={setSuspended.bind(null, user.id, false)}
+                    done={`@${user.username} askıdan çıkarıldı.`}
+                  >
+                    <RotateCcw />
+                    Askıdan çıkar
+                  </ConfirmButton>
+                ) : (
+                  <ConfirmButton
+                    action={setSuspended.bind(null, user.id, true)}
+                    done={`@${user.username} askıya alındı.`}
+                    confirm={{
+                      title: `@${user.username} askıya alınsın mı?`,
+                      text: "Oturumu kapanır, giriş yapamaz ve hiçbir şey yapamaz. Verileri silinmez; istediğin zaman askıdan çıkarabilirsin.",
+                      label: "Askıya al",
+                    }}
+                  >
+                    <Ban />
+                    Askıya al
+                  </ConfirmButton>
+                )}
+                <ConfirmButton
+                  variant="destructive"
+                  action={deleteUserAccount.bind(null, user.id)}
+                  done={`@${user.username} hesabı silindi.`}
+                  redirectTo="/admin/kullanicilar"
+                  confirm={{
+                    title: `@${user.username} hesabı silinsin mi?`,
+                    text: "Hesap, izleme geçmişi, yorumları, listeleri ve takipleri kalıcı olarak silinir. Bu geri alınamaz.",
+                    label: "Hesabı sil",
+                  }}
+                >
+                  <Trash2 />
+                  Hesabı sil
+                </ConfirmButton>
+              </>
             )}
-            <ConfirmButton
-              variant="destructive"
-              action={deleteUserAccount.bind(null, user.id)}
-              done={`@${user.username} hesabı silindi.`}
-              redirectTo="/admin/kullanicilar"
-              confirm={{
-                title: `@${user.username} hesabı silinsin mi?`,
-                text: "Hesap, izleme geçmişi, yorumları, listeleri ve takipleri kalıcı olarak silinir. Bu geri alınamaz.",
-                label: "Hesabı sil",
-              }}
-            >
-              <Trash2 />
-              Hesabı sil
-            </ConfirmButton>
           </div>
         </section>
       )}

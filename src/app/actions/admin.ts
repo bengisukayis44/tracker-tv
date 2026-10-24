@@ -74,3 +74,17 @@ export async function dismissReports(commentId: string): Promise<ActionResult> {
   revalidatePath("/admin", "layout");
   return { ok: true };
 }
+
+/** Only the site owner makes someone an admin or takes it back; never on themselves or a suspended account. */
+export async function setAdmin(userId: string, admin: boolean): Promise<ActionResult> {
+  const owner = await adminOnly();
+  if (!owner?.isOwner) return { ok: false, error: "Yönetici yetkisini yalnızca site sahibi verebilir." };
+  if (!idSchema.safeParse(userId).success || userId === owner.id) return USER_NOT_FOUND;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { suspendedAt: true, isOwner: true } });
+  if (!user || user.isOwner) return USER_NOT_FOUND;
+  if (admin && user.suspendedAt) return { ok: false, error: "Askıdaki bir hesap yönetici yapılamaz." };
+
+  await prisma.user.update({ where: { id: userId }, data: { isAdmin: admin } });
+  revalidatePath("/admin", "layout");
+  return { ok: true };
+}

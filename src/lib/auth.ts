@@ -4,7 +4,14 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
-export type CurrentUser = { id: string; username: string; email: string; avatarUrl: string | null; isAdmin: boolean };
+export type CurrentUser = {
+  id: string;
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+  isOwner: boolean;
+};
 
 /**
  * The signed-in user's profile, or null. Deduplicated per request.
@@ -24,7 +31,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   const profile = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { id: true, username: true, email: true, avatarUrl: true, isAdmin: true, suspendedAt: true },
+    select: { id: true, username: true, email: true, avatarUrl: true, isAdmin: true, isOwner: true, suspendedAt: true },
   });
   // A suspended account counts as signed out everywhere, even with a session that is still valid
   if (!profile || profile.suspendedAt) return null;
@@ -34,6 +41,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     email: profile.email,
     avatarUrl: profile.avatarUrl,
     isAdmin: profile.isAdmin,
+    isOwner: profile.isOwner,
   };
 });
 

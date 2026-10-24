@@ -132,11 +132,12 @@ export async function getAdminOverview(now = new Date()) {
 export const ADMIN_USERS_PAGE = 50;
 
 /** Members, newest first, optionally matching a name or e-mail. */
-export async function getAdminUsers(query: string, page: number) {
+export async function getAdminUsers(query: string, page: number, adminsOnly = false) {
   const q = query.trim().toLowerCase().replace(/^@/, "");
   const where: Prisma.UserWhereInput = {
     ...realUser,
     ...(q && { OR: [{ username: { contains: q } }, { email: { contains: q } }] }),
+    ...(adminsOnly && { isAdmin: true }),
   };
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
@@ -151,6 +152,7 @@ export async function getAdminUsers(query: string, page: number) {
         email: true,
         avatarUrl: true,
         isAdmin: true,
+        isOwner: true,
         isPrivate: true,
         suspendedAt: true,
         createdAt: true,
@@ -171,6 +173,7 @@ export async function getAdminUser(id: string) {
       email: true,
       avatarUrl: true,
       isAdmin: true,
+      isOwner: true,
       isPrivate: true,
       suspendedAt: true,
       createdAt: true,
