@@ -14,7 +14,7 @@ import { newTestUser } from "./helpers";
 
 export type TestAccount = ReturnType<typeof newTestUser> & { id: string };
 
-async function createAccount(): Promise<TestAccount> {
+export async function createAccount(): Promise<TestAccount> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !secret) throw new Error("E2E testleri için NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SECRET_KEY gerekli.");
@@ -37,6 +37,7 @@ export async function resetAccount(account: TestAccount) {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   try {
+    await db.query(`DELETE FROM "CommentReport" WHERE "reporterId" = $1`, [account.id]);
     for (const table of ["WatchedEpisode", "WatchedMovie", "Favorite", "WatchlistItem", "CommentLike", "Comment"]) {
       await db.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [account.id]);
     }
@@ -45,7 +46,7 @@ export async function resetAccount(account: TestAccount) {
     await db.query(`DELETE FROM "List" WHERE "userId" = $1`, [account.id]);
     await db.query(`DELETE FROM "Notification" WHERE "userId" = $1 OR "actorId" = $1`, [account.id]);
     await db.query(
-      `UPDATE "User" SET "isPrivate" = false, "avatarUrl" = NULL, "coverPath" = NULL, "coverPositionY" = 50, "coverCharacterTitleId" = NULL, "coverCharacterCastId" = NULL, "username" = $2 WHERE "id" = $1`,
+      `UPDATE "User" SET "isPrivate" = false, "avatarUrl" = NULL, "coverPath" = NULL, "coverPositionY" = 50, "coverCharacterTitleId" = NULL, "coverCharacterCastId" = NULL, "isAdmin" = false, "suspendedAt" = NULL, "username" = $2 WHERE "id" = $1`,
       [account.id, account.username],
     );
   } finally {

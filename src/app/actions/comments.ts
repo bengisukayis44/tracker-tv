@@ -151,3 +151,26 @@ export async function toggleCommentLike(commentId: string): Promise<ActionResult
   if (path) revalidatePath(path);
   return { ok: true, liked };
 }
+
+const REPORT_REASONS = ["SPOILER", "ABUSE", "SPAM", "OTHER"] as const;
+
+/** Reports someone else's comment to the admins; reporting the same comment twice changes nothing. */
+export async function reportComment(commentId: string, reason: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return LOGIN_REQUIRED;
+  if (!idSchema.safeParse(commentId).success) return COMMENT_NOT_FOUND;
+  const why = REPORT_REASONS.find((r) => r === reason);
+  if (!why) return { ok: false, error: "Bir şikayet nedeni seç." };
+
+  const comment = await findComment(commentId);
+  if (!comment) return COMMENT_NOT_FOUND;
+  if (comment.userId === user.id) return { ok: false, error: "Kendi yorumunu şikayet edemezsin." };
+
+  // A closed report opens again when the same person reports once more
+  await prisma.commentReport.upsert({
+    where: { commentId_reporterId: { commentId, reporterId: user.id } },
+    create: { commentId, reporterId: user.id, reason: why },
+    update: { reason: why, resolvedAt: null, createdAt: new Date() },
+  });
+  return { ok: true };
+}

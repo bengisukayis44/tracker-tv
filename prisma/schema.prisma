@@ -47,6 +47,8 @@ model User {
   coverPositionY        Int      @default(50) // kapağın dikey konumu: 0 = üstü, 100 = altı görünür
   coverCharacterTitleId String? // kapağın ikinci sayfası: seçilen karakterin dizisi/filmi (Title.id)
   coverCharacterCastId  Int? // ve oyuncunun TMDB kimliği (Title.castMembers içinden)
+  isAdmin               Boolean  @default(false) // yönetim paneline (/admin) girebilir
+  suspendedAt           DateTime? // askıya alındı: giriş yapamaz, hiçbir işlem yapamaz
   createdAt             DateTime @default(now())
 
   watchedEpisodes   WatchedEpisode[]
@@ -61,6 +63,7 @@ model User {
   notificationsSent Notification[]     @relation("actor")
   following         Follow[]           @relation("follower")
   followers         Follow[]           @relation("following")
+  commentReports    CommentReport[]
 }
 
 // ---------- İçerik (dış API önbelleği) ----------
@@ -189,6 +192,7 @@ model Comment {
   parent        Comment?       @relation("replies", fields: [parentId], references: [id], onDelete: Cascade)
   replies       Comment[]      @relation("replies")
   notifications Notification[]
+  reports       CommentReport[]
 
   @@index([episodeId])
   @@index([titleId])
@@ -322,4 +326,27 @@ model SearchCache {
   query     String   @id
   results   Json // SearchResult[] (imdbRating hariç)
   fetchedAt DateTime @default(now())
+}
+
+enum ReportReason {
+  SPOILER // spoiler işaretlenmemiş
+  ABUSE // hakaret, taciz
+  SPAM // reklam, alakasız
+  OTHER
+}
+
+/** Bir kullanıcının bir yorumu şikayet etmesi; yönetici "sorun yok" deyince resolvedAt dolar. */
+model CommentReport {
+  id         String       @id @default(cuid())
+  commentId  String
+  reporterId String
+  reason     ReportReason
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  comment  Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporter User    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, reporterId])
+  @@index([resolvedAt])
 }

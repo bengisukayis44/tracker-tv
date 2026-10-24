@@ -63,6 +63,7 @@ export async function loginAction(values: LoginInput, callbackUrl?: string): Pro
     if (error.code === "over_request_rate_limit" || error.status === 429) {
       return { error: "Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin." };
     }
+    if (error.code === "user_banned") return { error: "Hesabın askıya alındı. Giriş yapamazsın." };
     if (error.code !== "invalid_credentials") console.error("Giriş başarısız:", error);
     return invalid;
   }

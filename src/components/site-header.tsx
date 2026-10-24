@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, LogOut, Settings, Tv } from "lucide-react";
+import { Bell, LogOut, Settings, ShieldCheck, Tv } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getUnreadCount } from "@/lib/notifications";
 import { logoutAction } from "@/app/(auth)/actions";
@@ -70,6 +70,14 @@ export async function SiteHeader() {
                     Ayarlar
                   </Link>
                 </DropdownMenuItem>
+                {user.isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin">
+                      <ShieldCheck />
+                      Yönetim paneli
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <form action={logoutAction}>
                   <DropdownMenuItem asChild>
                     <button type="submit" className="w-full">

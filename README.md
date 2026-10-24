@@ -84,6 +84,21 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 - Akışta son 30 günde en çok izleme yapan herkese açık kullanıcılar önerilir; arama sayfası kullanıcı adlarını da
   bulur. `@e2e.test` test hesapları öneri ve aramada gösterilmez.
 
+## Yönetim paneli (`/admin`)
+
+- Yalnızca `User.isAdmin` olan hesaplar girer (site sahibi, migration ile). Başkası her panel adresinde "sayfa
+  bulunamadı" görür; her sayfa ve her işlem sunucuda yeniden kontrol eder. Yöneticiye hesap menüsünde "Yönetim paneli".
+- **Genel bakış:** üye sayısı (7/30 günde yeni), aktif kişi (izledi ya da yorum yazdı), izlenen bölüm/film, yorum ve
+  bekleyen şikayet sayıları; son 30 günün yeni üye ve izleme grafikleri; bu hafta en çok izlenen diziler ve filmler.
+  `@e2e.test` hesapları sayılmaz.
+- **Kullanıcılar:** ad ya da e-postayla arama, sayfa başı 50. Kişi sayfasında izleme/yorum/takip özetleri, son
+  yorumları; **askıya al** (Supabase Auth'ta `banned_until`, oturumları silinir, uygulamada da çıkış yapmış sayılır;
+  girişte "Hesabın askıya alındı"), **askıdan çıkar**, **hesabı sil** (`auth.users` silinir, tetikleyici profili ve
+  her şeyini siler). Yönetici kendine ve başka yöneticiye işlem yapamaz.
+- **Yorumlar:** başkasının yorumunda **Şikayet et** (nedenler: işaretlenmemiş spoiler, hakaret/taciz, reklam, diğer;
+  `CommentReport`). Panelde şikayet edilenler (en çok şikayet alan üstte, nedenleriyle) ve son 100 yorum; **Sil** ya da
+  **Sorun yok** (şikayetler kapanır, yeniden şikayet edilirse tekrar açılır). Bekleyen şikayet sayısı panel menüsünde.
+
 ## Faz 6: kabul kriterleri, hata ekranları, hız, erişilebilirlik
 
 - **Kabul kriterleri** (PROJE_PLANI.md §7): dokuzu da uçtan uca testlerle doğrulanıyor:

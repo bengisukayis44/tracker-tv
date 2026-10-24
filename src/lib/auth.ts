@@ -1,9 +1,10 @@
 import "server-only";
+import { notFound } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
-export type CurrentUser = { id: string; username: string; email: string; avatarUrl: string | null };
+export type CurrentUser = { id: string; username: string; email: string; avatarUrl: string | null; isAdmin: boolean };
 
 /**
  * The signed-in user's profile, or null. Deduplicated per request.
@@ -21,8 +22,24 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     console.error("Oturum doğrulanamadı:", error.status, error.message);
   if (!user) return null;
 
-  return prisma.user.findUnique({
+  const profile = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { id: true, username: true, email: true, avatarUrl: true },
+    select: { id: true, username: true, email: true, avatarUrl: true, isAdmin: true, suspendedAt: true },
   });
+  // A suspended account counts as signed out everywhere, even with a session that is still valid
+  if (!profile || profile.suspendedAt) return null;
+  return {
+    id: profile.id,
+    username: profile.username,
+    email: profile.email,
+    avatarUrl: profile.avatarUrl,
+    isAdmin: profile.isAdmin,
+  };
 });
+
+/** The signed-in admin; anyone else gets "page not found", so the panel does not reveal itself. */
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user?.isAdmin) notFound();
+  return user;
+}

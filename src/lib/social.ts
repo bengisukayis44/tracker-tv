@@ -144,6 +144,7 @@ export async function getSuggestedUsers(viewerId: string, limit = 6) {
     ) w ON w."userId" = u."id"
     WHERE w."watchedAt" >= ${since}
       AND u."isPrivate" = false
+      AND u."suspendedAt" IS NULL
       AND u."id" <> ${viewerId}
       AND u."email" NOT LIKE '%@e2e.test'
       AND NOT EXISTS (SELECT 1 FROM "Follow" f WHERE f."followerId" = ${viewerId} AND f."followingId" = u."id")
@@ -158,7 +159,12 @@ export async function searchUsers(query: string, limit = 6) {
   const q = query.trim().toLowerCase().replace(/^@/, "");
   if (q.length < 2) return [];
   const users = await prisma.user.findMany({
-    where: { username: { contains: q }, isPrivate: false, NOT: { email: { endsWith: "@e2e.test" } } },
+    where: {
+      username: { contains: q },
+      isPrivate: false,
+      suspendedAt: null,
+      NOT: { email: { endsWith: "@e2e.test" } },
+    },
     select: { username: true, avatarUrl: true },
     take: 50,
   });

@@ -126,6 +126,7 @@ export function CommentSection({
               spoilersRevealed={spoilersRevealed}
               onToggleLike={toggleLike}
               reply={{ target, signedIn }}
+              signedIn={signedIn}
             />
           ))}
         </div>

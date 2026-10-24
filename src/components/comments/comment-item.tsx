@@ -21,6 +21,7 @@ import type { CommentTarget } from "@/lib/validations/comment";
 import { useLoginRedirect } from "@/components/watch/use-login-redirect";
 import { cn } from "@/lib/utils";
 import { CommentForm } from "./comment-form";
+import { ReportButton } from "./report-button";
 import { SpoilerBlur } from "./spoiler-blur";
 
 /**
@@ -32,6 +33,7 @@ export function CommentItem({
   spoilersRevealed,
   onToggleLike,
   reply,
+  signedIn,
 }: {
   comment: CommentView;
   /** The viewer has watched it, so spoilers need not be hidden */
@@ -39,6 +41,7 @@ export function CommentItem({
   onToggleLike: (comment: CommentView) => void;
   /** Given for top-level comments: where a reply goes. Replies themselves cannot be answered */
   reply?: { target: CommentTarget; signedIn: boolean };
+  signedIn: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [replying, setReplying] = useState(false);
@@ -152,6 +155,9 @@ export function CommentItem({
                   Cevapla
                 </Button>
               )}
+              {!comment.mine && (
+                <ReportButton commentId={comment.id} username={comment.author.username} signedIn={signedIn} />
+              )}
             </div>
           )}
           {reply && replying && (
@@ -199,6 +205,7 @@ export function CommentItem({
               comment={answer}
               spoilersRevealed={spoilersRevealed}
               onToggleLike={onToggleLike}
+              signedIn={signedIn}
             />
           ))}
         </div>
