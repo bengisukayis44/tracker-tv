@@ -99,6 +99,31 @@ test.describe("Arama", () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test("oyuncu aranır ve oyuncu sayfasına gidilir", async ({ page }) => {
+    // Next to titles, a clearly named actor shows up too
+    await page.goto("/search?q=cumberbatch");
+    const actors = page.getByRole("region", { name: "Oyuncular" });
+    await expect(actors.locator('a[href="/person/71580"]')).toContainText("Benedict Cumberbatch");
+
+    await page.getByRole("navigation", { name: "Tür filtresi" }).getByRole("link", { name: "Oyuncu" }).click();
+    await expect(page).toHaveURL(/tur=oyuncu/);
+    await expect(page.locator('a[href^="/series/"], a[href^="/movie/"]')).toHaveCount(0);
+    await actors.locator('a[href="/person/71580"]').click();
+    await expect(page.getByRole("heading", { level: 1, name: "Benedict Cumberbatch" })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test("kullanıcı filtresinde dizi, film ve oyuncu çıkmaz", async ({ page }) => {
+    // Test accounts are kept out of user search, so only the filter itself is checked here
+    await page.goto("/search?q=sherlock&tur=kullanici");
+    await expect(page.getByRole("link", { name: "Kullanıcı", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('a[href^="/series/"], a[href^="/movie/"], a[href^="/person/"]')).toHaveCount(0);
+
+    await page.goto("/search?q=xqzjvkwqpl&tur=kullanici");
+    await expect(page.getByText("Sonuç bulunamadı")).toBeVisible();
+    await expect(page.getByText(/bir kullanıcı bulamadık/)).toBeVisible();
+  });
+
   test("sonuçsuz ve boş arama açıklayıcı mesaj gösterir", async ({ page }) => {
     // A slow data source is also an acceptable answer here
     await page.goto("/search?q=xqzjvkwqpl");

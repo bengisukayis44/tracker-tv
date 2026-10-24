@@ -181,7 +181,10 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 
 ## Filmler
 
-- Arama dizi ve filmleri birlikte getirir; **Hepsi / Dizi / Film** filtreleriyle daraltılır, kartlarda tür yazar.
+- Arama dizi ve filmleri birlikte getirir; **Hepsi / Dizi / Film / Oyuncu / Kullanıcı** filtreleriyle daraltılır,
+  kartlarda tür yazar. Oyuncular TMDB'nin kişi aramasından gelir (bir gün önbellekte), fotoğraf ve bilinen yapımlarıyla
+  oyuncu sayfasına bağlanır; "Hepsi"de yalnızca adı aramayla açıkça eşleşenler (her kelime bir ad kelimesinin başı,
+  Türkçe harf ve aksan farkı gözetmeden, `src/lib/name-match.ts`) en fazla 6 tane çıkar.
 - Film sayfası (`/movie/[id]`): afiş, özet, süre, türler, IMDb puanı ve bağlantısı. Dizi sayfasıyla aynı üst bölümü
   kullanır (`src/components/title-hero.tsx`).
 - Filmler de bölümler gibi **İzledim** ile işaretlenir: puan, duygular, kişisel not (`WatchedMovie` tablosu).
@@ -202,7 +205,7 @@ kişisel sekmelere basınca giriş sayfasına gider. Hesap menüsünde Ayarlar v
 
 | Yol | Sayfa |
 |---|---|
-| `/search?q=…&tur=hepsi\|dizi\|film` | Arama (dizi ve film birlikte ya da filtreli) |
+| `/search?q=…&tur=hepsi\|dizi\|film\|oyuncu\|kullanici` | Arama (hepsi birlikte ya da filtreli) |
 | `/series/[id]` | Dizi detay + ilk sezonun bölümleri (`id` = TMDB dizi kimliği) |
 | `/series/[id]/season/[s]` | Aynı sayfa, seçili sezonla (eski `?sezon=N` adresleri buraya yönlenir) |
 | `/series/[id]/season/[s]/episode/[e]` | Bölüm sayfası, önceki/sonraki bölüm |

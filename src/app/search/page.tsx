@@ -5,10 +5,13 @@ import { AlertCircle, Clock, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
 import { UserChip } from "@/components/social/user-chip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { refreshSearchCache, searchTitles, titleHref, type SearchKind, type SearchResult } from "@/lib/catalog";
 import { genreLabel, pickRating, statusLabel } from "@/lib/format";
+import { nameMatches } from "@/lib/name-match";
+import { searchActors, type ActorResult } from "@/lib/person";
 import { searchUsers } from "@/lib/social";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +21,8 @@ const FILTERS = [
   { value: "hepsi", label: "Hepsi" },
   { value: "dizi", label: "Dizi" },
   { value: "film", label: "Film" },
+  { value: "oyuncu", label: "Oyuncu" },
+  { value: "kullanici", label: "Kullanıcı" },
 ] as const;
 type Filter = (typeof FILTERS)[number]["value"];
 
@@ -29,16 +34,59 @@ function filterHref(q: string, filter: Filter) {
   return qs ? `/search?${qs}` : "/search";
 }
 
+const PLACEHOLDERS: Record<Filter, string> = {
+  hepsi: "Dizi, film, oyuncu ya da kullanıcı… (ör. Breaking Bad)",
+  dizi: "Dizi adı… (ör. Breaking Bad)",
+  film: "Film adı… (ör. Inception)",
+  oyuncu: "Oyuncu adı… (ör. Pedro Pascal)",
+  kullanici: "Kullanıcı adı…",
+};
+const WHAT: Record<Filter, string> = {
+  hepsi: "bir dizi, film, oyuncu ya da kullanıcı",
+  dizi: "bir dizi",
+  film: "bir film",
+  oyuncu: "bir oyuncu",
+  kullanici: "bir kullanıcı",
+};
+
+/** Photo, name and best-known titles, linking to the actor page. */
+function ActorChip({ actor }: { actor: ActorResult }) {
+  return (
+    <Link
+      href={`/person/${actor.id}`}
+      prefetch={false}
+      className="bg-card hover:border-primary/50 flex items-center gap-3 rounded-xl border p-3 transition-colors"
+    >
+      <Avatar className="size-12">
+        {actor.photoUrl && <AvatarImage src={actor.photoUrl} alt="" className="object-cover" />}
+        <AvatarFallback>{actor.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span className="min-w-0">
+        <span className="block truncate font-semibold">{actor.name}</span>
+        {actor.knownFor.length > 0 && (
+          <span className="text-muted-foreground block truncate text-xs">{actor.knownFor.join(", ")}</span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; tur?: string }> }) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const filter: Filter = FILTERS.some((f) => f.value === params.tur) ? (params.tur as Filter) : "hepsi";
 
   const kind: SearchKind = filter === "dizi" ? "series" : filter === "film" ? "movie" : "all";
+  const titlesWanted = filter === "hepsi" || filter === "dizi" || filter === "film";
   let results: SearchResult[] = [];
   let partial = false;
   let error = false;
-  if (q) {
+  // Actors and users load while the titles do
+  const people = Promise.all([
+    q && (filter === "hepsi" || filter === "oyuncu") ? searchActors(q) : [],
+    q && (filter === "hepsi" || filter === "kullanici") ? searchUsers(q, filter === "kullanici" ? 24 : 6) : [],
+  ]);
+  if (q && titlesWanted) {
     try {
       ({ results, partial } = await searchTitles(q, kind));
       // The data source was too slow: finish the search after the response so the next try has full results
@@ -49,14 +97,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     }
   }
   const retryHref = filterHref(q, filter);
-  // People too, on the unfiltered search
-  const users = q && filter === "hepsi" ? await searchUsers(q) : [];
+  const [allActors, users] = await people;
+  // Next to titles, only actors the search clearly names (TMDB also returns loose matches)
+  const actors = filter === "hepsi" ? allActors.filter((a) => nameMatches(a.name, q)).slice(0, 6) : allActors;
 
   return (
     <div className="space-y-8">
       <div className="space-y-1">
         <h1 className="text-3xl font-extrabold tracking-tight">Ara</h1>
-        <p className="text-muted-foreground">Takip etmek istediğin dizi ve filmleri bul.</p>
+        <p className="text-muted-foreground">Dizi, film, oyuncu ya da kullanıcı bul.</p>
       </div>
 
       <div className="space-y-4">
@@ -67,7 +116,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <Input
               name="q"
               defaultValue={q}
-              placeholder="Dizi veya film adı… (ör. Breaking Bad)"
+              placeholder={PLACEHOLDERS[filter]}
               aria-label="Arama"
               className="h-10 pl-9"
               autoFocus={!q}
@@ -78,7 +127,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </Button>
         </form>
 
-        <nav aria-label="Tür filtresi" className="bg-muted inline-flex rounded-lg p-1">
+        <nav aria-label="Tür filtresi" className="bg-muted inline-flex max-w-full flex-wrap rounded-lg p-1">
           {FILTERS.map((f) => (
             <Link
               key={f.value}
@@ -97,6 +146,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </nav>
       </div>
 
+      {actors.length > 0 && (
+        <section aria-labelledby="actor-results" className="space-y-3">
+          <h2 id="actor-results" className="text-lg font-bold">
+            Oyuncular
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {actors.map((a) => (
+              <ActorChip key={a.id} actor={a} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {users.length > 0 && (
         <section aria-labelledby="user-results" className="space-y-3">
           <h2 id="user-results" className="text-lg font-bold">
@@ -111,7 +173,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
 
       {!q ? (
-        <EmptyState icon={<Search />} title="Aramaya başla" text="Yukarıdaki kutuya bir dizi ya da film adı yaz." />
+        <EmptyState icon={<Search />} title="Aramaya başla" text={`Yukarıdaki kutuya ${WHAT[filter]} adı yaz.`} />
+      ) : !titlesWanted ? (
+        (filter === "oyuncu" ? actors : users).length === 0 && (
+          <EmptyState
+            icon={<Search />}
+            title="Sonuç bulunamadı"
+            text={`"${q}" için ${filter === "oyuncu" ? "bir oyuncu" : "bir kullanıcı"} bulamadık. Farklı bir yazım dene.`}
+          />
+        )
       ) : error ? (
         <EmptyState
           icon={<AlertCircle className="text-destructive" />}
@@ -130,13 +200,21 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </Button>
         </div>
       ) : results.length === 0 ? (
-        <EmptyState
-          icon={<Search />}
-          title="Sonuç bulunamadı"
-          text={`"${q}" için ${filter === "dizi" ? "bir dizi" : filter === "film" ? "bir film" : "bir dizi ya da film"} bulamadık. Farklı bir yazım dene.`}
-        />
+        // Matching people are an answer too
+        actors.length + users.length === 0 && (
+          <EmptyState
+            icon={<Search />}
+            title="Sonuç bulunamadı"
+            text={`"${q}" için ${filter === "dizi" ? "bir dizi" : filter === "film" ? "bir film" : "bir dizi, film ya da kişi"} bulamadık. Farklı bir yazım dene.`}
+          />
+        )
       ) : (
-        <section className="space-y-4">
+        <section aria-label="Dizi ve filmler" className="space-y-4">
+          {actors.length + users.length > 0 && (
+            <h2 className="text-lg font-bold">
+              {filter === "dizi" ? "Diziler" : filter === "film" ? "Filmler" : "Dizi ve filmler"}
+            </h2>
+          )}
           {partial && (
             <div
               role="status"

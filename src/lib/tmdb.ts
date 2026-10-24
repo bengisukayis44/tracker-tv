@@ -115,6 +115,17 @@ export type TmdbPerson = {
   translations?: { translations: { iso_639_1: string; data: { biography?: string } }[] };
 };
 
+/** /search/person result: someone and a few of the titles they are known for. */
+export type TmdbPersonSearchItem = {
+  id: number;
+  adult?: boolean;
+  name: string;
+  profile_path: string | null;
+  known_for_department: string | null;
+  popularity: number;
+  known_for?: ({ media_type: "tv"; name: string } | { media_type: "movie"; title: string } | { media_type: string })[];
+};
+
 /** /search/multi result: series and movies (people are filtered out). */
 export type TmdbMultiSearchItem =
   | (TmdbTvSearchItem & { media_type: "tv" })
@@ -295,6 +306,18 @@ export const tmdb = {
       (r): r is Exclude<TmdbMultiSearchItem, { media_type: "person" }> =>
         r.media_type === "tv" || r.media_type === "movie",
     );
+  },
+
+  /** People whose name matches, most popular first (adult entries left out). */
+  async searchPeople(query: string, options?: TmdbRequestOptions): Promise<TmdbPersonSearchItem[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const data = await tmdbFetch<{ results: TmdbPersonSearchItem[] }>(
+      "/search/person",
+      { query: q, language: LANGUAGE, include_adult: "false", page: "1" },
+      options,
+    );
+    return data.results.filter((p) => !p.adult);
   },
 
   /** This week's most popular series or movies worldwide (adult titles left out). */

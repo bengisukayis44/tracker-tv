@@ -163,3 +163,34 @@ export async function watchedAmong(userId: string, credits: { type: "SERIES" | "
   ]);
   return new Set([...series.map((s) => `SERIES-${s.tmdbId}`), ...movies.map((m) => `MOVIE-${m.title.tmdbId}`)]);
 }
+
+/** An actor in the search results. */
+export type ActorResult = { id: number; name: string; photoUrl: string | null; knownFor: string[] };
+
+async function fetchActors(query: string): Promise<ActorResult[]> {
+  const people = await tmdb.searchPeople(query, { timeoutMs: 4_000, retries: 1 });
+  return people
+    .filter((p) => p.known_for_department === "Acting")
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      photoUrl: tmdbImage(p.profile_path, "w185"),
+      knownFor: (p.known_for ?? [])
+        .map((k) => ("name" in k ? k.name : "title" in k ? k.title : null))
+        .filter((t): t is string => Boolean(t))
+        .slice(0, 3),
+    }));
+}
+
+/** Actors whose name matches the search, from TMDB, cached for a day; an unreachable TMDB gives none. */
+export async function searchActors(query: string): Promise<ActorResult[]> {
+  const q = query.trim().toLocaleLowerCase("tr-TR");
+  if (q.length < 2) return [];
+  try {
+    return await cachedActors(q);
+  } catch (err) {
+    console.error("Oyuncu araması başarısız:", err);
+    return [];
+  }
+}
+const cachedActors = unstable_cache(fetchActors, ["actor-search-v1"], { revalidate: 24 * 60 * 60 });
