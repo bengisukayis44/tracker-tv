@@ -86,8 +86,13 @@ export default async function ProfilePage({ params, searchParams }: Props) {
           </h1>
           <p className="text-muted-foreground text-sm">
             {memberSince.format(user.createdAt)}&apos;den beri üye ·{" "}
-            <span className="text-foreground font-semibold">{follow.followers}</span> takipçi ·{" "}
-            <span className="text-foreground font-semibold">{follow.following}</span> takip
+            <Link href={`/profile/${user.username}/takipciler`} className="hover:text-foreground hover:underline">
+              <span className="text-foreground font-semibold">{follow.followers}</span> takipçi
+            </Link>{" "}
+            ·{" "}
+            <Link href={`/profile/${user.username}/takip-edilenler`} className="hover:text-foreground hover:underline">
+              <span className="text-foreground font-semibold">{follow.following}</span> takip
+            </Link>
           </p>
         </div>
         {/* On phones the button gets its own line, so the name is not squeezed */}

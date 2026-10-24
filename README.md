@@ -76,6 +76,8 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
 ## Takip ve akış
 
 - Başkasının profilinde **Takip et**; profilde takipçi ve takip sayısı. Gizli profiller takip edilemez.
+- Sayılar **takip listelerini** açar (`/profile/[kullanıcı]/takipciler`, `/takip-edilenler`): en yeni takip
+  önce, her kişinin yanında takip et / takipten çık. Gizli profilin listelerini yalnızca sahibi görür.
 - **Akış** (`/akis`): takip edilenlerin son 60 gündeki izlemeleri (tekrarlar dahil, puanıyla) ve yorumları.
   Aynı kişinin aynı gün aynı diziden izlediği bölümler tek satırda toplanır ("3 bölüm izledi"). Gizli profile
   geçen birinin hareketleri akışa girmez; kişisel notlar hiçbir zaman gösterilmez.

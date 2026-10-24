@@ -169,3 +169,32 @@ export async function searchUsers(query: string, limit = 6) {
     )
     .slice(0, limit);
 }
+
+export const FOLLOW_LISTS = {
+  takipciler: { label: "Takipçiler", empty: "Henüz takipçi yok." },
+  "takip-edilenler": { label: "Takip edilenler", empty: "Henüz kimse takip edilmiyor." },
+} as const;
+export type FollowList = keyof typeof FOLLOW_LISTS;
+
+/**
+ * Who follows a profile (or whom it follows), newest follow first, with whether the viewer follows each of them.
+ */
+export async function getFollowList(profileId: string, list: FollowList, viewerId: string | null) {
+  const follows = await prisma.follow.findMany({
+    where: list === "takipciler" ? { followingId: profileId } : { followerId: profileId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      follower: { select: { id: true, username: true, avatarUrl: true, isPrivate: true } },
+      following: { select: { id: true, username: true, avatarUrl: true, isPrivate: true } },
+    },
+  });
+  const users = follows.map((f) => (list === "takipciler" ? f.follower : f.following));
+  const mine = viewerId
+    ? await prisma.follow.findMany({
+        where: { followerId: viewerId, followingId: { in: users.map((u) => u.id) } },
+        select: { followingId: true },
+      })
+    : [];
+  const followed = new Set(mine.map((f) => f.followingId));
+  return users.map((u) => ({ ...u, isFollowing: followed.has(u.id) }));
+}

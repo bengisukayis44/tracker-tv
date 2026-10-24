@@ -72,4 +72,49 @@ test.describe("Takip ve akış", () => {
       await resetAccount(otherAccount);
     }
   });
+
+  test("takipçiler ve takip edilenler listelenir", async ({ signedInPage: page, account, otherAccount }) => {
+    await resetAccount(otherAccount);
+    try {
+      await page.goto(`/profile/${otherAccount.username}`);
+      await page.getByRole("button", { name: `@${otherAccount.username} takip et` }).click();
+      await expect(page.getByText(`@${otherAccount.username} takip ediliyor.`)).toBeVisible();
+
+      // The count opens the list
+      await page.getByRole("link", { name: "1 takipçi" }).click();
+      await expect(page).toHaveURL(`/profile/${otherAccount.username}/takipciler`);
+      await expect(page.getByRole("heading", { level: 1, name: "Takipçiler" })).toBeVisible();
+      const followers = page.getByRole("list", { name: "Takipçiler" });
+      await expect(followers.getByRole("link", { name: new RegExp(`@${account.username}`) })).toBeVisible();
+      // Nobody gets a button for themselves
+      await expect(followers.getByRole("button")).toHaveCount(0);
+
+      await page
+        .getByRole("navigation", { name: "Takip listeleri" })
+        .getByRole("link", { name: /Takip edilenler/ })
+        .click();
+      await expect(page).toHaveURL(`/profile/${otherAccount.username}/takip-edilenler`);
+      await expect(page.getByText("Henüz kimse takip edilmiyor.")).toBeVisible();
+
+      // My own list: unfollow straight from it
+      await page.goto(`/profile/${account.username}`);
+      await page.getByRole("link", { name: "1 takip" }).click();
+      await expect(page).toHaveURL(`/profile/${account.username}/takip-edilenler`);
+      const following = page.getByRole("list", { name: "Takip edilenler" });
+      await following.getByRole("button", { name: `@${otherAccount.username} takipten çık` }).click();
+      await expect(page.getByText(`@${otherAccount.username} takipten çıkarıldı.`)).toBeVisible();
+      await page.reload();
+      await expect(page.getByText("Henüz kimse takip edilmiyor.")).toBeVisible();
+
+      // A private profile keeps its lists to itself
+      await withDb((db) => db.query(`UPDATE "User" SET "isPrivate" = true WHERE "id" = $1`, [otherAccount.id]));
+      await page.goto(`/profile/${otherAccount.username}/takipciler`);
+      await expect(page.getByText("Bu profil gizli")).toBeVisible();
+
+      await page.goto(`/profile/${otherAccount.username}/baska`);
+      await expect(page.getByRole("heading", { name: "Sayfa bulunamadı" })).toBeVisible();
+    } finally {
+      await resetAccount(otherAccount);
+    }
+  });
 });
