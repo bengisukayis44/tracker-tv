@@ -3,8 +3,8 @@ import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { Discover, TitleRow } from "@/components/discover";
 import { WatchLists } from "@/components/profile/watch-lists";
+import { SearchBox } from "@/components/search-box";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { getDiscoverLists, refreshSeries } from "@/lib/catalog";
 import { getMostDiscussed } from "@/lib/comment-data";
 import { getRecommendations } from "@/lib/recommendations";
@@ -38,12 +38,7 @@ export default async function HomePage() {
           Dizi ve filmlerini takip et, bölümleri puanla, hislerini kaydet ve spoiler korumalı yorumları oku.
         </p>
         <form action="/search" role="search" className="mx-auto flex max-w-lg gap-2">
-          <Input
-            name="q"
-            placeholder="Bir dizi ya da film ara… (ör. Sherlock)"
-            aria-label="Dizi ya da film ara"
-            className="h-10"
-          />
+          <SearchBox placeholder="Dizi, film, oyuncu ya da kullanıcı ara…" ariaLabel="Dizi ya da film ara" />
           <Button type="submit" size="lg" className="h-10">
             Ara
           </Button>

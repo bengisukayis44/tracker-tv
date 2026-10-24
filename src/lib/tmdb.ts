@@ -130,7 +130,7 @@ export type TmdbPersonSearchItem = {
 export type TmdbMultiSearchItem =
   | (TmdbTvSearchItem & { media_type: "tv" })
   | (TmdbMovieSearchItem & { media_type: "movie" })
-  | { media_type: "person"; id: number };
+  | (TmdbPersonSearchItem & { media_type: "person" });
 
 export type TmdbMovieDetails = {
   id: number;
@@ -306,6 +306,18 @@ export const tmdb = {
       (r): r is Exclude<TmdbMultiSearchItem, { media_type: "person" }> =>
         r.media_type === "tv" || r.media_type === "movie",
     );
+  },
+
+  /** Series, movies and people in one list, in TMDB's relevance order (for suggestions while typing). */
+  async searchAll(query: string, options?: TmdbRequestOptions): Promise<TmdbMultiSearchItem[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const data = await tmdbFetch<{ results: TmdbMultiSearchItem[] }>(
+      "/search/multi",
+      { query: q, language: LANGUAGE, include_adult: "false", page: "1" },
+      options,
+    );
+    return data.results.filter((r) => !r.adult);
   },
 
   /** People whose name matches, most popular first (adult entries left out). */

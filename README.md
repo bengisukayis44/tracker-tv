@@ -200,6 +200,9 @@ Geliştirme planı: `PROJE_PLANI.md` (6 faz). Tamamlanan fazlar: **Faz 1 (temel 
   kartlarda tür yazar. Oyuncular TMDB'nin kişi aramasından gelir (bir gün önbellekte), fotoğraf ve bilinen yapımlarıyla
   oyuncu sayfasına bağlanır; "Hepsi"de yalnızca adı aramayla açıkça eşleşenler (her kelime bir ad kelimesinin başı,
   Türkçe harf ve aksan farkı gözetmeden, `src/lib/name-match.ts`) en fazla 6 tane çıkar.
+- **Yazdıkça öneriler** (ana sayfa ve arama kutusu): 2 harften sonra, 200 ms bekleyip `/api/suggest` sorulur; en
+  fazla 5 dizi/film, 3 oyuncu ve 3 kullanıcı, en altta "tüm sonuçlar". Ok tuşları gezer, Enter açar, Escape kapatır
+  (WAI-ARIA combobox). TMDB'nin çoklu araması bir gün önbellekte; 2,5 sn'de yanıt gelmezse kayıtlı içerikler önerilir.
 - Film sayfası (`/movie/[id]`): afiş, özet, süre, türler, IMDb puanı ve bağlantısı. Dizi sayfasıyla aynı üst bölümü
   kullanır (`src/components/title-hero.tsx`).
 - Filmler de bölümler gibi **İzledim** ile işaretlenir: puan, duygular, kişisel not (`WatchedMovie` tablosu).

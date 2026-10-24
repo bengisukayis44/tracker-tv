@@ -4,10 +4,10 @@ import { after } from "next/server";
 import { AlertCircle, Clock, Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PosterCard } from "@/components/poster-card";
+import { SearchBox } from "@/components/search-box";
 import { UserChip } from "@/components/social/user-chip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { refreshSearchCache, searchTitles, titleHref, type SearchKind, type SearchResult } from "@/lib/catalog";
 import { genreLabel, pickRating, statusLabel } from "@/lib/format";
 import { nameMatches } from "@/lib/name-match";
@@ -111,17 +111,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       <div className="space-y-4">
         <form action="/search" className="flex max-w-2xl gap-2" role="search">
           {filter !== "hepsi" && <input type="hidden" name="tur" value={filter} />}
-          <div className="relative flex-1">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              name="q"
-              defaultValue={q}
-              placeholder={PLACEHOLDERS[filter]}
-              aria-label="Arama"
-              className="h-10 pl-9"
-              autoFocus={!q}
-            />
-          </div>
+          <SearchBox key={q} defaultValue={q} placeholder={PLACEHOLDERS[filter]} ariaLabel="Arama" autoFocus={!q} />
           <Button type="submit" size="lg" className="h-10">
             Ara
           </Button>

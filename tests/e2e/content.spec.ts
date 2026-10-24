@@ -57,8 +57,8 @@ test.describe("Ana sayfa", () => {
 test.describe("Arama", () => {
   test("ana sayfadan arama yapılır ve sonuçtan diziye gidilir", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("textbox", { name: "Dizi ya da film ara" }).fill("sherlock");
-    await page.getByRole("textbox", { name: "Dizi ya da film ara" }).press("Enter");
+    await page.getByRole("combobox", { name: "Dizi ya da film ara" }).fill("sherlock");
+    await page.getByRole("combobox", { name: "Dizi ya da film ara" }).press("Enter");
 
     await expect(page).toHaveURL(/\/search\?q=sherlock/);
     await expect(page.getByText(/“sherlock” için \d+ sonuç/)).toBeVisible();
@@ -66,6 +66,33 @@ test.describe("Arama", () => {
 
     await page.locator(`a[href="/series/${SHERLOCK.id}"]`).first().click();
     await expect(page.getByRole("heading", { level: 1, name: SHERLOCK.name })).toBeVisible();
+  });
+
+  test("yazdıkça öneriler çıkar; klavyeyle ve tıklayarak seçilir", async ({ page }) => {
+    await page.goto("/search");
+    const box = page.getByRole("combobox", { name: "Arama" });
+    await box.fill("sherlo");
+    const list = page.getByRole("listbox", { name: "Öneriler" });
+    await expect(list.getByRole("option", { name: /^Sherlock Dizi · 2010/ })).toBeVisible();
+    await expect(list.getByRole("option", { name: '"sherlo" için tüm sonuçlar' })).toBeVisible();
+
+    // Escape closes, typing opens again
+    await box.press("Escape");
+    await expect(list).toHaveCount(0);
+    await box.press("k");
+    await expect(list.getByRole("option").first()).toBeVisible();
+
+    // Arrow down to the first suggestion and Enter opens it
+    await box.press("ArrowDown");
+    await expect(list.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+    await box.press("Enter");
+    await expect(page).toHaveURL(/\/(series|movie|person|profile)\//);
+
+    // Actors are suggested too, and a click opens their page
+    await page.goto("/search");
+    await page.getByRole("combobox", { name: "Arama" }).fill("benedict cumber");
+    await list.getByRole("option", { name: /^Benedict Cumberbatch Oyuncu/ }).click();
+    await expect(page).toHaveURL("/person/71580");
   });
 
   test("hepsi aramasında diziler ve filmler birlikte gelir", async ({ page }) => {
